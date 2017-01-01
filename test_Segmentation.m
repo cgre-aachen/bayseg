@@ -28,7 +28,7 @@ F = {F01};
 dimension = 2;
 beta_initial = []; % do not specify initial value (i.e. randomly generate intial value)
 num_of_clusters = 2;
-Chain_length = 50;
+Chain_length = 100;
 % =============================
 seg = segmentation(F{1}.Element,dimension,beta_initial,F{1}.field_value,num_of_clusters,Chain_length);
 % =============================

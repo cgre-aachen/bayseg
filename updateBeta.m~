@@ -1,0 +1,38 @@
+function beta = updateBeta(Element,Mset,T,MID_list,beta,SigmaProp)
+% beta is a column vector.
+
+%===== constract proposal function ==========================
+beta_star = (mvnrnd(beta',SigmaProp))';
+%===== calsulate posteriori loglikelihood ===================
+n_of_element = length(Element);
+n_Mset = length(Mset);
+loglike = zeros(n_of_element,1);
+loglike_star = zeros(n_of_element,1);
+parfor idx=1:n_of_element
+    U = Element(idx).SelfU; % assign the energy of sigle site clique
+    U_star = Element(idx).SelfU;
+    n_neighbor=length(Element(idx).Neighbors);
+    M_center = ones(n_neighbor,1)*Mset;
+    M_neighbor = MID_list(Element(idx).Neighbors)*ones(1,n_Mset);
+    is_zero = (M_center==M_neighbor);
+    M_beta = Element(idx).Direction*beta*ones(1,n_Mset); % beta is n_direction-by-1 vector.
+    M_beta_star = Element(idx).Direction*beta_star*ones(1,n_Mset); % beta_star is n_direction-by-1 vector.
+    M_beta(is_zero) = 0;
+    M_beta_star(is_zero) = 0;
+    U = U + sum(M_beta);
+    U_star = U_star + sum(M_beta_star);
+    P = exp(-U/T)/sum(exp(-U/T));
+    P_star = exp(-U_star/T)/sum(exp(-U_star/T));
+    loglike(idx) = log(P(MID_list(idx)));
+    loglike_star(idx) = log(P_star(MID_list(idx)));    
+end    
+logSum = sum(loglike);
+logSum_star = sum(loglike_star);
+%====== accept/reject beta ============================
+if 
+accceptRate = min(1,exp(logSum_star-logSum));
+r=rand(1);
+if r <= accceptRate
+    beta=beta_star;
+end
+end

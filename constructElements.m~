@@ -1,0 +1,39 @@
+function Element = constructElements(x,y,z,dimension,order)
+% This function is used for construct Element structure given the domain
+% size x,y,z
+
+
+grid_matrix = (combvec(1:length(x),1:length(y),1:length(z)))';
+num_of_elment = size(grid_matrix,1);
+
+Element=struct('Grid',0,'Center',0,'Degree',0, ... 
+    'Color',0,'Neighbors',cell(1,1));
+
+Element.Grid = grid_matrix;
+if length(z) > 1
+    Element.Center = [x(grid_matrix(:,1))',y(grid_matrix(:,2))',z(grid_matrix(:,3))'];
+else
+    Element.Center = [x(grid_matrix(:,1))',y(grid_matrix(:,2))',z(grid_matrix(:,3))];
+end
+% Find the neighbors
+parfor i=1:num_of_elment
+    temp=[];
+    for j = 1:dimension
+        idx_j = find(abs(grid_matrix(:,j)-grid_matrix(i,j))<=order);
+        if j == 1
+            temp = idx_j;
+        else
+            temp = intersect(temp,idx_j);
+        end
+    end
+    NeighborsID=setdiff(temp,[i;0]);
+    Element.Degree(i)=length(NeighborsID);
+    Element.Color(i) = 0;
+    Element.Neighbors{i}=NeighborsID;  % column vector;
+    fprintf('Finding neighbors... Element_Num=%d \n',i);    
+end
+%==========================================================================            
+fprintf('coloring... \n');
+[Element,m]=LRSC(Element);
+fprintf('The total number of colors is=%d \n',m);
+end 

@@ -1,4 +1,4 @@
-function seg = segmentation(Element,dimeansion,beta_initial,field_value,num_of_clusters,Chain_length)
+function seg = segmentation(Element,dimension,beta_initial,field_value,num_of_clusters,Chain_length)
 % this is function is an implementation of the HMRF classification.
 % verbose is a logical value 1: output the detailed results
 %                            0: donot output the detailed results
@@ -12,22 +12,22 @@ if ~isfield(Element,'SelfU')
 end
 
 if ~isfield(Element,'Direction')
-    Element = detectNeighborDirection(Element,dimeansion);
+    Element = detectNeighborDirection(Element,dimension);
 end
 
 [para_scanorder,num_of_color]=chromaticClassification(Element);
 
 if isempty(beta_initial)
-    if dimeansion == 1
-        nbr_of_diff_beta = 1;
+    if dimension == 1
+        num_of_diff_beta = 1;
     end
-    if dimeansion == 2
-        nbr_of_diff_beta = 4;
+    if dimension == 2
+        num_of_diff_beta = 4;
     end
-    if dimeansion == 3
-        nbr_of_diff_beta = 13;
+    if dimension == 3
+        num_of_diff_beta = 13;
     end
-    beta_initial = mvnrnd(zeros(1,nbr_of_diff_beta),0.01*diag(ones(nbr_of_diff_beta,1)))'; % beta is a column vector! 3D case beta is 13x1, 2D case beta is 4x1
+    beta_initial = mvnrnd(zeros(1,num_of_diff_beta),0.01*diag(ones(num_of_diff_beta,1)))'; % beta is a column vector! 3D case beta is 13x1, 2D case beta is 4x1
 end
 
 % =========== HMRF sampling ==================

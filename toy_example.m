@@ -1,7 +1,7 @@
 clc;clear;
 addpath('./Functions');
 %% define the block_size
-block_size = 20;
+block_size = 40;
 
 %% construct Element
 x = 1:block_size;
@@ -24,9 +24,9 @@ case_ID = 2;
 if case_ID == 1
     for i = 1:block_size^2;
         d = norm(Element.Center(i,:)-[10,10,0]);
-        if d <= 5
+        if (d <= block_size/4)
             latent_field(i) = 1;
-        else if d>5 && d<=8
+        else if (d > block_size/4) && (d <= block_size/2.5)
                 latent_field(i) = 2;
             else
                 latent_field(i) = 3;
@@ -37,10 +37,10 @@ end
 % ========== case 2 =====================
 if case_ID == 2
     for i = 1:block_size^2;
-        d = abs(Element.Center(i,2) - 5*sin(Element.Center(i,1)/20*2*pi)-10);
-        if d <= 2
+        d = abs(Element.Center(i,2) - (block_size/4)*sin(Element.Center(i,1)/block_size*2*pi)-block_size/2);
+        if d <= block_size/10
             latent_field(i) = 1;
-        else if d > 2 && d <= 5
+        else if d > block_size/10 && d <= block_size/4
                 latent_field(i) = 2;
             else
                 latent_field(i) = 3;
@@ -69,11 +69,12 @@ labels = {'feature 1','feature 2'};
 mixturePlot(mu,SIGMA,field_value,latent_field,labels);
 
 %% segmentation
-nbr_of_clusters = 3;
+num_of_clusters = 3;
 Chain_length = 200;
-verbose = 1;
+dimension = 2;
+beta_initial = [];
 % =============================
-seg = segmentation(Element,field_value,nbr_of_clusters,Chain_length,verbose);
+seg = segmentation(Element,dimension,beta_initial,field_value,num_of_clusters,Chain_length);
 % =============================
 
 figure;
@@ -109,29 +110,36 @@ title('MCR');
 xlabel('Iteration');
 ylabel('MCR');
 %% create movie
-clc;clear;close all;
-load toy_example_case1.mat;
-
-clearvars F;
-
 F(Chain_length-1) = struct('cdata',[],'colormap',[]);
-
-
+t_pause = 5;
 for j = 1:(Chain_length-1)
-    fig = figure('Position',[1 1 1920 470]);
-    subplot(1,3,1);
+    fig = figure('Position',[1 1 1000 1000]);
+    %============================================
+    subplot(2,2,1);
     plotField(Element,seg.MC_inferred(:,j+1));
     colorbar off;
-    subplot(1,3,2);
+    %============================================
+    subplot(2,2,2);
     labels = {'feature 1','feature 2'};
-    mixturePlot(seg.mu_bin(:,:,j+1),seg.SIGMA_bin(:,:,:,j+1),seg.field_value,seg.MC_inferred(:,j+1),labels);
-    subplot(1,3,3);
+    mixturePlot(seg.mu_bin(:,:,j+1),seg.SIGMA_bin(:,:,:,j+1),seg.field_value,seg.MC_inferred(:,j+1),labels);    
+    %==============================================
+    subplot(2,2,3);
     plot(2:j+1,MCR(2:j+1));
     title('MCR');
+    xlim([1 Chain_length]);
+    ylim([0 max(MCR)+0.02]);
     xlabel('Iteration');
     ylabel('MCR');
-    drawnow;
-    t_pause = 5;
+    %==============================================
+    subplot(2,2,4);
+    plot(2:j+1,seg.beta_bin(:,2:j+1));
+    title('beta');
+    xlim([1 Chain_length]);
+    ylim([0 max(seg.beta_bin(:))+0.05]);
+    xlabel('Iteration');
+    ylabel('beta');    
+    %===============================================
+    drawnow;    
     pause(t_pause);
     F(j) = getframe(fig);    
     close all;
@@ -147,8 +155,8 @@ axis off
 
 movie(hf,F);
 
-% movie2avi(F,'segmentation.avi');
-v = VideoWriter('segmentation','MPEG-4');
+%% movie2avi(F,'segmentation.avi');
+v = VideoWriter('~/Videos/segmentation.avi','Motion JPEG AVI');
 open(v);
 writeVideo(v,F);
 close(v);

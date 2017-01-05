@@ -8,7 +8,7 @@ for i = 1:length(F)
         F{i}.Element = detectNeighborDirection(F{i}.Element,2);
     end
     if ~isfield(F{i},'field_value');
-        F{i}.field_value = cat(2,retrieve(F{i}.Element,F{i}.NDVI_z_score),retrieve(F{i}.Element,F{i}.logEMI_z_score));
+        F{i}.field_value = cat(2,retrieve(F{i}.Element,F{i}.NDVI_z_score),retrieve(F{i}.Element,F{i}.log_weighted_EMI_z_score));
         F{i}.field_value(isnan(sum(F{i}.field_value,2)),:) = NaN;
     end
     if i == 1

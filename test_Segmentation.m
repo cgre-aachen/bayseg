@@ -1,6 +1,9 @@
 %% define source data
 clc;clear;close all;
 addpath('./Functions');
+% MI_filename = '~/testing_data/F01_ME_H118_1m.csv';
+% loc_filename = '~/testing_data/F01_ME_H118_loc.csv';
+
 EMI_filename = 'F01_ME_H118_1m.csv';
 loc_filename = 'F01_ME_H118_loc.csv';
 %% prefprocess

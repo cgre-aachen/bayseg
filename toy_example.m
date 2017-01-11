@@ -1,4 +1,4 @@
-clc;clear;
+clc;clear;close all;
 addpath('./Functions');
 %% define the block_size
 block_size = 40;
@@ -49,7 +49,7 @@ if case_ID == 2
     end
 end
 % ========================================
-
+rng(0);
 field_value = simulateSoftData(Element,latent_field,mu,SIGMA);
 
 figure;

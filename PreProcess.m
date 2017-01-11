@@ -1,4 +1,4 @@
-function F = PreProcess(EMI_FileList,loc_filename,calib_para)
+function F = PreProcess(EMI_FileList,loc_filename)
 addpath('./Functions');
 %load allData_ratio_july.mat July_ratio x_july y_july;
 %load allData_F760_june.mat June_760 x_june y_june;
@@ -25,7 +25,7 @@ for i = 1:num_EMI_files
         uy = (min([uy_EMI;uy_NDVI]):resolusion:max([uy_EMI;uy_NDVI]))';
         temp = accumarray( [max(by)-(by-1),bx], EMI_data(:,3),[],[], NaN);        
         EMI_image = changeResolution(temp,ux_EMI,uy_EMI,ux,uy);        
-        [EMI_image,logEMI] = calibration(EMI_image,calib_para(i,:));
+        logEMI = log(EMI_image);
         logEMI_z_score = (logEMI-nanmean(logEMI(:)))/nanstd(logEMI(:));
     else
         EMI_data = csvread(EMI_FileList{i},1,0);
@@ -33,7 +33,7 @@ for i = 1:num_EMI_files
         [uy_EMI,~,by] = unique(EMI_data(:,2));
         temp1 = accumarray( [max(by)-(by-1),bx], EMI_data(:,3),[],[], NaN);        
         temp2 = changeResolution(temp1,ux_EMI,uy_EMI,ux,uy);        
-        [temp2,temp3] = calibration(temp2,calib_para(i,:));
+        temp3 = log(temp2);
         EMI_image = cat(3, EMI_image, temp2);
         temp4 = (temp3-nanmean(temp3(:)))/nanstd(temp3(:));
         logEMI_z_score = cat(3, logEMI_z_score, temp4);

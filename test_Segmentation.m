@@ -1,16 +1,17 @@
 %% define source data
+
 clc;clear;close all;
 addpath('./Functions');
-EMI_FileList = {'~/testing_data/Schophoven_ME_V32_1m.csv';
-                '~/testing_data/Schophoven_ME_V71_1m.csv';
-                '~/testing_data/Schophoven_ME_V118_1m.csv';
-                '~/testing_data/Schophoven_SE_H35_1m.csv';
-                '~/testing_data/Schophoven_SE_H49_1m.csv';
-                '~/testing_data/Schophoven_SE_H71_1m.csv';
-                '~/testing_data/Schophoven_SE_H97_1m.csv';
-                '~/testing_data/Schophoven_SE_H135_1m.csv';
-                '~/testing_data/Schophoven_SE_H180_1m.csv';};
-loc_filename = '~/testing_data/Schophoven_SE_H180_loc.csv';
+EMI_FileList = {'C:/users/wang/Documents/MATLAB/testing_data/Schophoven_ME_V32_1m.csv';
+                'C:/users/wang/Documents/MATLAB/testing_data/Schophoven_ME_V71_1m.csv';
+                'C:/users/wang/Documents/MATLAB/testing_data/Schophoven_ME_V118_1m.csv';
+                'C:/users/wang/Documents/MATLAB/testing_data/Schophoven_SE_H35_1m.csv';
+                'C:/users/wang/Documents/MATLAB/testing_data/Schophoven_SE_H49_1m.csv';
+                'C:/users/wang/Documents/MATLAB/testing_data/Schophoven_SE_H71_1m.csv';
+                'C:/users/wang/Documents/MATLAB/testing_data/Schophoven_SE_H97_1m.csv';
+                'C:/users/wang/Documents/MATLAB/testing_data/Schophoven_SE_H135_1m.csv';
+                'C:/users/wang/Documents/MATLAB/testing_data/Schophoven_SE_H180_1m.csv';};
+loc_filename = 'C:/users/wang/Documents/MATLAB/testing_data/Schophoven_SE_H180_loc.csv';
 
 calib_para = [1.11 16.5;
               1.03 7.2;
@@ -21,6 +22,8 @@ calib_para = [1.11 16.5;
               1.74 -5.1;
               1.51 -3.4;
               1.4 -3.0];
+
+
 %% prefprocess
 F01 = PreProcess(EMI_FileList,loc_filename,calib_para);
 

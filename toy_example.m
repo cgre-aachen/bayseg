@@ -109,55 +109,55 @@ plot(2:Chain_length,MCR(2:Chain_length));
 title('MCR');
 xlabel('Iteration');
 ylabel('MCR');
-%% create movie
-F(Chain_length-1) = struct('cdata',[],'colormap',[]);
-t_pause = 5;
-for j = 1:(Chain_length-1)
-    fig = figure('Position',[1 1 1000 1000]);
-    %============================================
-    subplot(2,2,1);
-    plotField(Element,seg.MC_inferred(:,j+1));
-    colorbar off;
-    %============================================
-    subplot(2,2,2);
-    labels = {'feature 1','feature 2'};
-    mixturePlot(seg.mu_bin(:,:,j+1),seg.SIGMA_bin(:,:,:,j+1),seg.field_value,seg.MC_inferred(:,j+1),labels);    
-    %==============================================
-    subplot(2,2,3);
-    plot(2:j+1,MCR(2:j+1));
-    title('MCR');
-    xlim([1 Chain_length]);
-    ylim([0 max(MCR)+0.02]);
-    xlabel('Iteration');
-    ylabel('MCR');
-    %==============================================
-    subplot(2,2,4);
-    plot(2:j+1,seg.beta_bin(:,2:j+1));
-    title('beta');
-    xlim([1 Chain_length]);
-    ylim([0 max(seg.beta_bin(:))+0.05]);
-    xlabel('Iteration');
-    ylabel('beta');    
-    %===============================================
-    drawnow;    
-    pause(t_pause);
-    F(j) = getframe(fig);    
-    close all;
-    clearvars fig;
-    display(j);
-end
-
-[h, w, p] = size(F(1).cdata);  % use 1st frame to get dimensions
-hf = figure; 
-% resize figure based on frame's w x h, and place at (150, 150)
-set(hf, 'position', [150 150 w h]);
-axis off
-
-movie(hf,F);
-
-%% movie2avi(F,'segmentation.avi');
-v = VideoWriter('~/Videos/segmentation.avi','Motion JPEG AVI');
-open(v);
-writeVideo(v,F);
-close(v);
+% %% create movie
+% F(Chain_length-1) = struct('cdata',[],'colormap',[]);
+% t_pause = 5;
+% for j = 1:(Chain_length-1)
+%     fig = figure('Position',[1 1 1000 1000]);
+%     %============================================
+%     subplot(2,2,1);
+%     plotField(Element,seg.MC_inferred(:,j+1));
+%     colorbar off;
+%     %============================================
+%     subplot(2,2,2);
+%     labels = {'feature 1','feature 2'};
+%     mixturePlot(seg.mu_bin(:,:,j+1),seg.SIGMA_bin(:,:,:,j+1),seg.field_value,seg.MC_inferred(:,j+1),labels);    
+%     %==============================================
+%     subplot(2,2,3);
+%     plot(2:j+1,MCR(2:j+1));
+%     title('MCR');
+%     xlim([1 Chain_length]);
+%     ylim([0 max(MCR)+0.02]);
+%     xlabel('Iteration');
+%     ylabel('MCR');
+%     %==============================================
+%     subplot(2,2,4);
+%     plot(2:j+1,seg.beta_bin(:,2:j+1));
+%     title('beta');
+%     xlim([1 Chain_length]);
+%     ylim([0 max(seg.beta_bin(:))+0.05]);
+%     xlabel('Iteration');
+%     ylabel('beta');    
+%     %===============================================
+%     drawnow;    
+%     pause(t_pause);
+%     F(j) = getframe(fig);    
+%     close all;
+%     clearvars fig;
+%     display(j);
+% end
+% 
+% [h, w, p] = size(F(1).cdata);  % use 1st frame to get dimensions
+% hf = figure; 
+% % resize figure based on frame's w x h, and place at (150, 150)
+% set(hf, 'position', [150 150 w h]);
+% axis off
+% 
+% movie(hf,F);
+% 
+% %% movie2avi(F,'segmentation.avi');
+% v = VideoWriter('~/Videos/segmentation.avi','Motion JPEG AVI');
+% open(v);
+% writeVideo(v,F);
+% close(v);
 

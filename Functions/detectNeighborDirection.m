@@ -17,9 +17,9 @@ if dimension == 2
             0 0 0 0];
 end
 if dimension == 3
-    base = [1 0 0 1 1 0 0 1 -1 1 -1 1 -1;
-            0 1 0 1 -1 1 -1 0 0 1 1 -1 -1;
-            0 0 1 0 0 1 1 1 1 1 1 1 1]; 
+    base = [1 0 1 -1 0 -1 1 0 -1 1 0 -1 1;
+            0 1 1 1 0 0 0 -1 -1 -1 1 1 1;
+            0 0 0 0 1 1 1 1 1 1 1 1 1]; 
 end
 
 Direc = cell(num_of_ele,1);
@@ -39,7 +39,7 @@ parfor i=1:num_of_ele
             end            
         end
         if dimension == 3
-            if (lij(3) < 0) || (lij(3) == 0 && (lij(2) < 0) || (lij(2) == 0 && lij(1) < 0))
+            if (lij(3) < 0) || (lij(3) == 0 && (lij(2) < 0) || (lij(3) == 0 && lij(2) == 0 && lij(1) < 0))
                 lij = -1*lij;
             end            
         end

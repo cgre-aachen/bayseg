@@ -41,12 +41,14 @@ startPoint = round(Chain_length/5);
 latent_field_est(isnan(sum(Prob,2))) = NaN;
 [MU_hat,MU_std] = CalCenter(mu_bin,startPoint);
 [R,stds,COV_hat,COV_std] = CalCorrCoeff(SIGMA_bin,startPoint);
+[beta_hat,beta_std] = CalBeta(beta_bin,startPoint);
 
 % ========== output ==========================
 seg.latent_field_est = latent_field_est;
 seg.InfEntropy = InfEntropy;
 seg.MU_hat = MU_hat;
 seg.COV_hat = COV_hat;
+seg.beta_hat = beta_hat;
 seg.num_of_clusters = num_of_clusters;
 seg.para_scanorder = para_scanorder;
 seg.num_of_color = num_of_color;
@@ -60,6 +62,7 @@ seg.Prob = Prob;
 seg.TotalInfEntr = TotalInfEntr;
 seg.MU_std = MU_std;
 seg.COV_std = COV_std;
+seg.beta_std = beta_std;
 seg.CorrCoeffMatrix = R;
 seg.stdMatrix = stds;
 end

@@ -14,14 +14,14 @@ Element.Center = [x(grid_matrix(:,1)),y(grid_matrix(:,2)),z(grid_matrix(:,3))];
 D(num_of_elements,1) = 0;
 C(num_of_elements,1) = 0;
 Nei = cell(num_of_elements,1);
+fprintf('Finding neighbors...\n');    
 parfor i=1:num_of_elements
     idx_matrix = abs(grid_matrix-ones(num_of_elements,1)*grid_matrix(i,:)) <= order;
     temp = find(sum(idx_matrix,2)==3);
     NeighborsID=setdiff(temp,[i;0]);
     D(i)=length(NeighborsID);
     C(i) = 0;
-    Nei{i}=NeighborsID;  % column vector;
-    fprintf('Finding neighbors... Element_Num=%d \n',i);    
+    Nei{i}=NeighborsID;  % column vector;    
 end
 Element.Degree = D;
 Element.Color = C;

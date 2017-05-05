@@ -15,6 +15,16 @@ for i=2:Chain_length
         T=C/log(101);
     end    
     MC_simulated(:,i)=Gibbs_samplling(Element,MC_simulated(:,i-1),Mset,T,para_scanorder,num_of_color,beta);    
-    display(i);    
+    
+    if i == 2
+        fprintf('Iteration = %4i',i-1);
+    else        
+        backspace = repmat('\b',1,4);       
+        if i < Chain_length
+            fprintf([backspace '%4i'],i-1);
+        else
+            fprintf([backspace '%4i \n'],i-1);
+        end
+    end        
 end
 end

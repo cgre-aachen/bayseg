@@ -13,7 +13,7 @@ Element = constructElements(x',y',0,order);
 dimension = 2;
 Mset=[1 2];
 Chain_length=50;
-beta = [0.1 0.1 0.1 0.1]'; % beta is a column vector
+beta = [2 -0.5 2 -0.5]'; % beta is a column vector
 num_of_elements = length(Element.Color);
 num_of_known_pixels = round(0.05*num_of_elements);
 sample = randsample(Mset,num_of_known_pixels,true,[0.3 0.7]);
@@ -25,8 +25,8 @@ figure;
 plotField(Element,MC_knowninfo);
 title('known info');
 
-Element=FixElement(Element,MC_knowninfo);
-Element=CalculateU(Element,[0,0]);
+Element = FixElement(Element,MC_knowninfo);
+Element = CalculateU(Element,[0,0]);
 Element = detectNeighborDirection(Element,dimension);
 
 MC_simulated=SimulateMRF(Element,MC_knowninfo,Mset,Chain_length,beta);

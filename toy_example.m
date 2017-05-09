@@ -109,6 +109,8 @@ plot(2:Chain_length,MCR(2:Chain_length));
 title('MCR');
 xlabel('Iteration');
 ylabel('MCR');
+
+% =========================================================================
 % %% create movie
 % F(Chain_length-1) = struct('cdata',[],'colormap',[]);
 % t_pause = 5;
@@ -160,4 +162,3 @@ ylabel('MCR');
 % open(v);
 % writeVideo(v,F);
 % close(v);
-

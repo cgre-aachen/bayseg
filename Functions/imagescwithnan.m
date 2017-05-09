@@ -2,8 +2,8 @@ function [h] = imagescwithnan(ux,uy,a,cm,nanclr)
 % IMAGESC with NaNs assigning a specific color to NaNs
 
 %# find minimum and maximum
-amin=min(a(:));
-amax=max(a(:));
+amin=nanmin(a(:));
+amax=nanmax(a(:));
 %# size of colormap
 n = size(cm,1);
 %# color step
@@ -17,7 +17,7 @@ axis equal;
 %# add nan color to colormap
 colormap([nanclr; cm]);
 %# changing color limits
-caxis([amin-dmap-1e-5 amax]);
+caxis([amin-dmap-1e-4 amax]);
 %# place a colorbar
 %hcb = colorbar;
 %# change Y limit for colorbar to avoid showing NaN color

@@ -1,6 +1,7 @@
 clc;clear;close all;
 addpath('./Functions');
 load ./sample_image.mat sample_image;
+imagesc(sample_image);
 %%
 x = (1:size(sample_image,2))';
 y = (1:size(sample_image,1))';

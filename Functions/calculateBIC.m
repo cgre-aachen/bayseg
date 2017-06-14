@@ -35,6 +35,6 @@ end
 p_y = sum(P.*f_y,2);
 logLikelihood=nansum(log(p_y));
 n_features = size(mu,2);
-k = length(beta_value) + n_Mset*n_features + n_Mset*n_features*(n_features+1)/2;
+k = length(beta_value) + n_Mset*(n_features + n) + n_Mset*n_features*(n_features+1)/2;
 BIC = -2*logLikelihood + k*log(n);
 end

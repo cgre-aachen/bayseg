@@ -5,6 +5,7 @@ function s = ThorntonSeparaIdx(X,L,ClassID)
 % ClassID is the list of all possible labels;
 
 N = length(L);
+s = NaN(length(ClassID),1);
 
 for i = 1:length(ClassID)
 	temp = zeros(N,1);

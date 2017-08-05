@@ -18,8 +18,8 @@ if size_grid(3) == 1
     cm = jet;
     nan_clr = [1 1 1];
     %# find minimum and maximum
-    value_min=min(value_list) - 1e-7;
-    value_max=max(value_list) + 1e-7;
+    value_min=min(value_list) - 1e-5;
+    value_max=max(value_list) + 1e-5;
     %# size of colormap
     n = size(cm,1);
     %# color step

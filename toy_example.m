@@ -11,14 +11,17 @@ Element = constructElements(x',y',0,order);
 
 %% generate toy data sets
 
-latent_field(block_size^2,1) = 0;
+% initialize the latent field
+latent_field(Element.num_of_elements,1) = 0;
 
+% define the parameters of the feature space
 mu=[6 9;4 12;9 14];
 SIGMA(2,2,3)=0;
 SIGMA(:,:,1)=3*[0.5625 0.225; 0.225 0.675];
 SIGMA(:,:,2)=3*[1.125 0.225; 0.225 0.675];
 SIGMA(:,:,3)=3*[0.5625 0.0225; 0.0225 0.675];
 
+% ========== set which case to use ========
 case_ID = 2;
 % ========== case 1 =======================
 if case_ID == 1
@@ -48,8 +51,8 @@ if case_ID == 2
         end
     end
 end
-% ========================================
-rng(0);
+% ========== plot the simulated data ====================
+rng(6);
 field_value = simulateSoftData(Element,latent_field,mu,SIGMA);
 
 figure;

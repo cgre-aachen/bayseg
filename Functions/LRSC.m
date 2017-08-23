@@ -2,9 +2,9 @@ function [Element,m]=LRSC(Element)
 v_o = ordering(Element);
 Element.Color(v_o(1)) = 1;
 m = 1;
-num_of_Element = length(Element.Color);
+%num_of_Element = length(Element.Color);
 
-for idx=2:num_of_Element
+for idx=2:Element.num_of_elements
     [flag,k]=findk(Element,v_o(idx),m);
     if flag==1
         Element.Color(v_o(idx)) = k;

@@ -25,6 +25,7 @@ display(mu_bin(:,:,1));
 display(SIGMA_bin(:,:,:,1));
 display(beta_bin(:,1));
 
+%======= define the hyperparameters =======================================
 mean_mu = GMModel.mu;
 sigma_mu = zeros(d,d,k);
 b_SIGMA = zeros(k,d);
@@ -37,7 +38,7 @@ sigma_beta = 100*ones(length(beta_ini),1);
 kesi_SIGMA = 100*ones(k,d);
 prior_para = {mean_mu,sigma_mu,mean_beta,sigma_beta,d+1,b_SIGMA,kesi_SIGMA};
 
-
+%======== MCMC procedure ================================================== 
 for i=2:Chain_length
     %=================================
     if i<=100

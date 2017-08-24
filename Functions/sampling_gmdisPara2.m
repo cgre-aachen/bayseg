@@ -2,14 +2,15 @@ function [mu,SIGMA,beta_value]=sampling_gmdisPara2(Element,MID_list,Mset,T,y,mu,
 % mu is n_Mset by d
 % SIGMA is d by d by k
 
-SigmaProp = diag(0.01*ones(length(beta_value),1));
+SigmaProp_for_beta = diag(0.01*ones(length(beta_value),1));
 
-num_of_ele=length(Element.Color);
+%num_of_ele=length(Element.Color);
+num_of_ele = Element.num_of_elements;
 n_Mset=size(mu,1);
 d=size(mu,2);
 
 %===== constract proposal function ===============    
-beta_star = mvnrnd(beta_value',SigmaProp)';
+beta_star = mvnrnd(beta_value',SigmaProp_for_beta)';
 
 mu_star=zeros(n_Mset,d);
 SIGMA_star=zeros(d,d,n_Mset);
@@ -40,7 +41,6 @@ parfor i=1:n_Mset
     SIGMA_star(:,:,i)=V_star*D_star*V_star';
 end
 
-%===== calsulate mixing parameters P ===================
 P=zeros(num_of_ele,n_Mset);
 P_star = zeros(num_of_ele,n_Mset);
 SU = Element.SelfU;
@@ -48,20 +48,8 @@ Nei = Element.Neighbors;
 Direc = Element.Direction;
 parfor idx=1:num_of_ele
     if ~isnan(MID_list(idx))
-        U=SU(idx,:); % assign the energy of sigle site clique
-        U_star = SU(idx,:);
-        n_neighbor=length(Nei{idx});
-        M_center = ones(n_neighbor,1)*Mset;
-        M_neighbor = MID_list(Nei{idx})*ones(1,n_Mset);
-        is_zero = (M_center==M_neighbor) | isnan(M_neighbor);
-        M_beta = beta_value(Direc{idx})*ones(1,n_Mset); % beta is n_direction-by-1 vector.
-        M_beta_star = beta_star(Direc{idx})*ones(1,n_Mset); % beta_star is n_direction-by-1 vector.
-        M_beta(is_zero) = 0;
-        M_beta_star(is_zero) = 0;
-        U = U + sum(M_beta);
-        U_star = U_star + sum(M_beta_star);
-        P(idx,:)=exp(-U/T)/sum(exp(-U/T));
-        P_star(idx,:) = exp(-U_star/T)/sum(exp(-U_star/T));
+        P(idx,:) = calc_mix(Mset,n_Mset,T,MID_list,beta_value,SU(idx,:),Nei{idx},Direc{idx})
+        P_star(idx,:) = calc_mix(Mset,n_Mset,T,MID_list,beta_star,SU(idx,:),Nei{idx},Direc{idx})
     end    
 end
 %===================================================================

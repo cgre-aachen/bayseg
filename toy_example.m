@@ -73,7 +73,7 @@ mixturePlot(mu,SIGMA,field_value,latent_field,labels);
 
 %% segmentation
 num_of_clusters = 3;
-Chain_length = 200;
+Chain_length = 100;
 dimension = 2;
 beta_initial = [];
 % =============================

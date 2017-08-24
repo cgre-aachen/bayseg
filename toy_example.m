@@ -104,7 +104,7 @@ labels = {'feature 1','feature 2'};
 mixturePlot(seg.mu_bin(:,:,iter),seg.SIGMA_bin(:,:,:,iter),seg.field_value,seg.MC_inferred(:,iter),labels);
 
 % ======================
-new_order = [1 2 3]; % manually adjust the order to make it compatible with the true latent field !!!!!!
+new_order = [2 1 3]; % manually adjust the order to make it compatible with the true latent field !!!!!!
 % ======================
 MCR=CalMCR(latent_field,seg.MC_inferred,new_order);
 figure;

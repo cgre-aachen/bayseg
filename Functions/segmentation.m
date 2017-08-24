@@ -1,7 +1,5 @@
 function seg = segmentation(Element,dimension,beta_initial,field_value,num_of_clusters,Chain_length)
 % this is function is an implementation of the HMRF classification.
-% verbose is a logical value 1: output the detailed results
-%                            0: donot output the detailed results
 
 % =============================
 

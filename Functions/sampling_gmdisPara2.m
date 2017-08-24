@@ -4,7 +4,6 @@ function [mu,SIGMA,beta_value]=sampling_gmdisPara2(Element,MID_list,Mset,T,y,mu,
 
 SigmaProp_for_beta = diag(0.01*ones(length(beta_value),1));
 
-%num_of_ele=length(Element.Color);
 num_of_ele = Element.num_of_elements;
 n_Mset=size(mu,1);
 d=size(mu,2);

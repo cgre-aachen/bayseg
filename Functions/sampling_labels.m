@@ -16,11 +16,13 @@ for i=1:num_of_color
     parfor idx = 1:n
         if ~isnan(temp_MID_list_old(idx))
             U=temp_U(idx,:); % assign the energy of sigle site clique
+            %========= calculate the likelihood energy ==============            
             for k=1:n_Mset
                 C=SIGMA(:,:,k);
                 Uy=0.5*(temp_y(idx,:)-mu(k,:))/C*(temp_y(idx,:)-mu(k,:))'+0.5*log(det(C));
                 U(k)=U(k)+Uy; % add the likelihood energy
             end
+            %========= calculate the MRF energy =====================
             current_nei_list = temp_Nei{idx};
             current_direction = temp_Direc{idx};
             n_neighbor=length(current_nei_list);            

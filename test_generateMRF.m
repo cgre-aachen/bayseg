@@ -13,4 +13,4 @@ Element = FixElement(Element,MC_ini); % if 0 is filled at a given pixel, the lab
 Element = CalculateU(Element,zeros(1,length(Mset)));
 Element = detectNeighborDirection(Element,2);
 MC_simulated = SimulateMRF(Element,MC_ini,Mset,Chain_length,beta);
-plotField(Element,MC_simulated(:,100));
+plotField(Element,MC_simulated(:,200));

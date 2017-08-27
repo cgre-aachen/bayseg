@@ -13,7 +13,8 @@ for i=2:Chain_length
         T=C/log(1+i);
     else
         T=C/log(101);
-    end    
+    end
+    
     MC_simulated(:,i)=Gibbs_samplling(Element,MC_simulated(:,i-1),Mset,T,para_scanorder,num_of_color,beta);    
     
     if i == 2

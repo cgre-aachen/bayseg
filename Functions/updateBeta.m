@@ -4,15 +4,24 @@ function beta = updateBeta(Element,Mset,T,MID_list,beta,SigmaProp)
 %===== generate a candidate using Gaussian proposal =========
 beta_star = mvnrnd(beta',SigmaProp)';
 %===== calculate prior ======================================
-beta_mean = [0 0 0 0]';
-beta_sigma = diag(10*ones(4,1));
+if length(beta) == 4
+    beta_mean = zeros(4,1); % beta is a column vector
+    beta_sigma = diag(10*ones(4,1));
+else
+    beta_mean = zeros(13,1); % beta is a column vector
+    beta_sigma = diag(13*ones(4,1));
+end
+
 logprior = log(mvnpdf(beta',beta_mean',beta_sigma));
 logprior_star = log(mvnpdf(beta_star',beta_mean',beta_sigma));
+
 %===== calsulate posteriori loglikelihood ===================
 n_of_element = length(MID_list);
 n_Mset = length(Mset);
+
 loglike(n_of_element,1) = 0;
-loglike_star = zeros(n_of_element,1);
+loglike_star(n_of_element,1) = 0;
+
 temp_U = Element.SelfU;
 temp_Nei = Element.Neighbors;
 temp_Direc = Element.Direction;
@@ -35,7 +44,8 @@ parfor idx=1:n_of_element
         loglike(idx) = log(P(MID_list(idx)));
         loglike_star(idx) = log(P_star(MID_list(idx)));
     end
-end    
+end
+
 logSum = sum(loglike) + logprior;
 logSum_star = sum(loglike_star) + logprior_star;
 %====== accept/reject beta ============================

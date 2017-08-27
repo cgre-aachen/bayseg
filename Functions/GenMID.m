@@ -7,12 +7,11 @@ k=length(P);
 L=tril(ones(k,k),0);
 CDF=[0;L*P];
 
-MID=zeros(N,1);
-r=rand(N,1);
-for i=1:N
-    temp=r(i)-CDF;
-    idx=sum(temp>0);
-    MID(i)=Mset(idx);
+MID(N,1) = 0;
+r = rand(N,1);
+for i = 1:N    
+    idx = sum((r(i) - CDF) > 0);
+    MID(i) = Mset(idx);
 end
 
 end

@@ -26,7 +26,7 @@ case_ID = 2;
 % ========== case 1 =======================
 if case_ID == 1
     for i = 1:block_size^2;
-        d = norm(Element.Center(i,:)-[10,10,0]);
+        d = norm(Element.Center(i,:)-[20,20,0]);
         if (d <= block_size/4)
             latent_field(i) = 1;
         else if (d > block_size/4) && (d <= block_size/2.5)

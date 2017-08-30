@@ -1,27 +1,13 @@
-function [h] = imagescwithnan(ux,uy,a,cm,nanclr)
-% IMAGESC with NaNs assigning a specific color to NaNs
+function [h] = imagescwithnan(ux,uy,M,cmap)
+% IMAGESC with NaNs assigning a white color to NaNs
 
-%# find minimum and maximum
-amin=nanmin(a(:));
-amax=nanmax(a(:));
-%# size of colormap
-n = size(cm,1);
-%# color step
-dmap=(amax-amin)/n;
-
-%# standard imagesc
-him = imagesc(ux([1,length(ux)]),flip(uy([1,length(uy)])),a);
+him = pcolor(ux,uy,flip(M));
+him.EdgeColor = 'none';
 set(gca,'Ydir','normal');
 axis image;
 axis equal;
-%# add nan color to colormap
-colormap([nanclr; cm]);
-%# changing color limits
-caxis([amin-dmap-1e-4 amax]);
-%# place a colorbar
-%hcb = colorbar;
-%# change Y limit for colorbar to avoid showing NaN color
-%ylim(hcb,[amin amax])
+colormap(cmap);
+colorbar;
 
 if nargout > 0
     h = him;

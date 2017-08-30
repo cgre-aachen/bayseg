@@ -38,11 +38,11 @@ seg = ExtendChain_para(seg,Ext_Chain_length);
 % =============================
 %% postprocess
 figure;
-plotField(F.Element,seg.latent_field_est);
+plotField(F.Element,seg.latent_field_est,viridis);
 title('segmentation result');
 
 figure;
-plotField(F.Element,seg.InfEntropy);
+plotField(F.Element,seg.InfEntropy,jet);
 title('Information Entropy');
 
 figure;
@@ -50,14 +50,14 @@ labels = {'NDVI','EC_a'};
 mixturePlot(seg.MU_hat,seg.COV_hat,seg.field_value,seg.latent_field_est,labels);
 
 figure;
-imagescwithnan(F.ux,F.uy,F.NDVI_image,viridis,[1 1 1]);
+imagescwithnan(F.ux,F.uy,F.NDVI_image,viridis);
 title('NDVI image');
 xlabel('UTM-E [m]');
 ylabel('UTM-N [m]');
 axis equal;
 
 figure;
-imagescwithnan(F.ux,F.uy,F.EMI_image,mycmap,[1 1 1]);
+imagescwithnan(F.ux,F.uy,F.EMI_image,mycmap);
 title('EMI image');
 xlabel('UTM-E [m]');
 ylabel('UTM-N [m]');

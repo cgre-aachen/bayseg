@@ -12,7 +12,6 @@ Element = constructElements(x',y',0,order);
 
 dimension = 2;
 Mset=[1 2];
-Chain_length=50;
 beta = [2 -0.5 2 -0.5]'; % beta is a column vector
 num_of_elements = Element.num_of_elements;
 num_of_known_pixels = round(0.05*num_of_elements);
@@ -22,8 +21,12 @@ MC_knowninfo = zeros(length(Element.Color),1);
 MC_knowninfo(sample_idx) = sample;
 
 figure;
-plotField(Element,MC_knowninfo);
+temp = MC_knowninfo;
+temp(temp == 0) = NaN;
+plotField(Element,temp,jet);
 title('known info');
+%%
+Chain_length=50;
 
 Element = FixElement(Element,MC_knowninfo);
 Element = CalculateU(Element,[0,0]);
@@ -32,5 +35,5 @@ Element = detectNeighborDirection(Element,dimension);
 MC_simulated=SimulateMRF(Element,MC_knowninfo,Mset,Chain_length,beta);
 
 figure;
-plotField(Element,MC_simulated(:,Chain_length));
+plotField(Element,MC_simulated(:,Chain_length),jet);
 title('simulation result');

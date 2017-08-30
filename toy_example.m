@@ -56,15 +56,15 @@ rng(6);
 field_value = simulateSoftData(Element,latent_field,mu,SIGMA);
 
 figure;
-plotField(Element,latent_field);
+plotField(Element,latent_field,jet);
 title('latent field');
 
 figure;
-plotField(Element,field_value(:,1));
+plotField(Element,field_value(:,1),jet);
 title('observed field 1');
 
 figure;
-plotField(Element,field_value(:,2));
+plotField(Element,field_value(:,2),jet);
 title('observed field 2');
 
 figure;
@@ -81,7 +81,7 @@ seg = segmentation(Element,dimension,beta_initial,field_value,num_of_clusters,Ch
 % =============================
 
 figure;
-plotField(Element,seg.latent_field_est);
+plotField(Element,seg.latent_field_est,jet);
 title('segmentation result');
 
 figure;
@@ -89,14 +89,14 @@ labels = {'feature 1','feature 2'};
 mixturePlot(seg.MU_hat,seg.COV_hat,seg.field_value,seg.latent_field_est,labels);
 
 figure;
-plotField(Element,seg.InfEntropy);
+plotField(Element,seg.InfEntropy,jet);
 title('InfEntropy');
 
 %% chain diagonose 
 iter = 2;
 
 figure;
-plotField(Element,seg.MC_inferred(:,iter));
+plotField(Element,seg.MC_inferred(:,iter),jet);
 title('GMM classification result');
 
 figure;

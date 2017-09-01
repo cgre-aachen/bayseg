@@ -1,4 +1,7 @@
 function dataList = cutout(coord,dataList,loc)
+% This function is used for deleting some pixels within several polugons 
+% defined by a cell "loc"
+
 x = coord(:,1);
 y = coord(:,2);
 

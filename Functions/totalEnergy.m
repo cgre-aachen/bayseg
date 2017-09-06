@@ -1,24 +1,19 @@
-function U=totalEnergy(Element,MC)
-ChainLength=size(MC,2);
-U=zeros(ChainLength,1);
-N=length(Element);
-for k=1:ChainLength
+function U = totalEnergy(Element,MC,beta)
+ChainLength = size(MC,2);
+U = zeros(ChainLength - 1,1);
+N = Element.num_of_elements;
+for k = 2:ChainLength
     MID_list=MC(:,k);
-    U_temp=0;
-    U_p=0;
+    U_temp=0;    
     for i=1:N
-        Potential=Element(i).SelfU;
-        U_p=U_p+Potential(MID_list(i));
-        n=length(Element(i).Neighbors);
-        for j=1:n
-            CurrentNeighborAddress=Element(i).Neighbors(j).Address;
-            if MID_list(i)~=MID_list(CurrentNeighborAddress)
-                U_temp=U_temp+Element(i).Neighbors(j).Beta;
-            end
-        end
+        selfU = Element.SelfU(i,:);
+        self_potential = selfU(MID_list(i));        
+        neighbor_list = Element.Neighbors{i};
+        direction_list = Element.Direction{i};
+        flag = MID_list(i)*ones(length(neighbor_list),1) ~= MID_list(neighbor_list);
+        neighbor_potential = sum(beta(direction_list(flag)));
+        U_temp = U_temp + self_potential + neighbor_potential;
     end
-    U(k,1)=1/2*U_temp+U_p;
+    U(k-1,1)=U_temp;
 end
-figure;
-plot(1:ChainLength,U(1:ChainLength));
 end

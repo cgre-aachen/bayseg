@@ -3,6 +3,7 @@ addpath('./Functions');
 load ./sample_image.mat sample_image;
 figure;
 imagesc(sample_image);
+colormap(jet);
 %%
 x = (1:size(sample_image,2))';
 y = (1:size(sample_image,1))';

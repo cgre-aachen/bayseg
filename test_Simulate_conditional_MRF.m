@@ -2,7 +2,7 @@ clc;clear;close all;
 addpath('./Functions');
 
 %% define the block_size
-block_size = 40;
+block_size = 64;
 
 %% construct Element and do simulation
 x = 1:block_size;

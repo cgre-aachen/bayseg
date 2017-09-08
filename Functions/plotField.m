@@ -9,12 +9,13 @@ z = unique(center_matrix(:,3));
 size_grid = max(grid_matrix);
 if size_grid(3) == 1    
     coord = grid_matrix(:,[2,1]);    
-    region = accumarray(coord,value_list,[],[],NaN);    
-    h = pcolor(x,y,region);
+    temp = accumarray(coord,value_list,[],[],NaN);    
+    h = pcolor(x,y,temp);
     h.EdgeColor = 'none';
     set(gca,'Ydir','normal');
     axis image;
     axis equal;    
     colormap(cmap);    
     colorbar;
+    region = flip(temp);
 end

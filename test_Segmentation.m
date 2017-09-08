@@ -6,14 +6,14 @@ addpath('./Functions');
 load 2D_sample_data.mat
 
 figure;
-imagescwithnan(F.ux,F.uy,F.EMI_image,mycmap,[1 1 1]);
+imagescwithnan(F.ux,F.uy,F.EMI_image,mycmap);
 title('EMI image');
 xlabel('UTM-E [m]');
 ylabel('UTM-N [m]');
 axis equal;
 
 figure;
-imagescwithnan(F.ux,F.uy,F.NDVI_image,viridis,[1 1 1]);
+imagescwithnan(F.ux,F.uy,F.NDVI_image,viridis);
 title('NDVI image');
 xlabel('UTM-E [m]');
 ylabel('UTM-N [m]');

@@ -6,14 +6,14 @@ addpath('./Functions');
 load 2D_sample_data.mat
 
 figure;
-imagescwithnan(F.ux,F.uy,F.EMI_image,mycmap);
+fieldImage(F.ux,F.uy,F.EMI_image,mycmap);
 title('EMI image');
 xlabel('UTM-E [m]');
 ylabel('UTM-N [m]');
 axis equal;
 
 figure;
-imagescwithnan(F.ux,F.uy,F.NDVI_image,viridis);
+fieldImage(F.ux,F.uy,F.NDVI_image,viridis);
 title('NDVI image');
 xlabel('UTM-E [m]');
 ylabel('UTM-N [m]');
@@ -48,17 +48,3 @@ title('Information Entropy');
 figure;
 labels = {'NDVI','EC_a'};
 mixturePlot(seg.MU_hat,seg.COV_hat,seg.field_value,seg.latent_field_est,labels);
-
-figure;
-imagescwithnan(F.ux,F.uy,F.NDVI_image,viridis);
-title('NDVI image');
-xlabel('UTM-E [m]');
-ylabel('UTM-N [m]');
-axis equal;
-
-figure;
-imagescwithnan(F.ux,F.uy,F.EMI_image,mycmap);
-title('EMI image');
-xlabel('UTM-E [m]');
-ylabel('UTM-N [m]');
-axis equal;

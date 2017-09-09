@@ -36,7 +36,5 @@ Field_data_selected = Field_data(in,:) ;
 [ux2,~,bx2] = unique(Field_data_selected(:,1));
 [uy2,~,by2] = unique(Field_data_selected(:,2));
 R_field = accumarray( [max(by2)-(by2-1),bx2], Field_data_selected(:,3),[],[], NaN);
-
-% figure('units','normalized','outerposition',[0 0 1 1]);
-% imagescwithnan(ux2,uy2,R_field,viridis,[1 1 1]);
+%R_field = accumarray( [by2,bx2], Field_data_selected(:,3),[],[], NaN);
 end

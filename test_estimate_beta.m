@@ -26,3 +26,8 @@ Element = detectNeighborDirection(Element,2);
 [MC_est,beta_bin]=GenerateMRF(Element,MC_ini,Mset,Chain_length,beta_ini,SigmaProp_ini);    
 
 plot(1:Chain_length,beta_bin);
+
+%%
+U = totalEnergy(Element,MC_est,beta_bin);
+figure;
+plot(2:Chain_length,U(1:Chain_length-1));

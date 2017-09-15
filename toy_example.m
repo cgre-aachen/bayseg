@@ -53,23 +53,23 @@ if case_ID == 2
 end
 % ========== plot the simulated data ====================
 rng(6);
-field_value = simulateSoftData(Element,latent_field,mu,SIGMA);
+observed_features = simulateSoftData(Element,latent_field,mu,SIGMA);
 
 figure;
 plotField(Element,latent_field,jet);
 title('latent field');
 
 figure;
-plotField(Element,field_value(:,1),jet);
+plotField(Element,observed_features(:,1),jet);
 title('observed field 1');
 
 figure;
-plotField(Element,field_value(:,2),jet);
+plotField(Element,observed_features(:,2),jet);
 title('observed field 2');
 
 figure;
 labels = {'feature 1','feature 2'};
-mixturePlot(mu,SIGMA,field_value,latent_field,labels);
+mixturePlot(mu,SIGMA,observed_features,latent_field,labels);
 
 %% segmentation
 num_of_clusters = 3;
@@ -77,7 +77,7 @@ Chain_length = 100;
 dimension = 2;
 beta_initial = [];
 % =============================
-seg = segmentation(Element,dimension,beta_initial,field_value,num_of_clusters,Chain_length);
+seg = segmentation(Element,dimension,beta_initial,observed_features,num_of_clusters,Chain_length);
 % =============================
 
 figure;
@@ -85,12 +85,12 @@ plotField(Element,seg.latent_field_est,jet);
 title('segmentation result');
 
 figure;
-labels = {'feature 1','feature 2'};
-mixturePlot(seg.MU_hat,seg.COV_hat,seg.field_value,seg.latent_field_est,labels);
-
-figure;
 plotField(Element,seg.InfEntropy,jet);
 title('InfEntropy');
+
+figure;
+labels = {'feature 1','feature 2'};
+mixturePlot(seg.MU_hat,seg.COV_hat,seg.field_value,seg.latent_field_est,labels);
 
 %% chain diagonose 
 iter = 2;

@@ -1,8 +1,9 @@
-function MID_list=sampling_labels(Element,MID_list,Mset,T,para_scanorder,num_of_color,y,mu,SIGMA,beta_value)
+function [MID_list,U_list]=sampling_labels(Element,MID_list,Mset,T,para_scanorder,num_of_color,y,mu,SIGMA,beta_value)
 % mu is k by d
 % SIGMA is d by d by k
 
 n_Mset=length(Mset);
+U_list = NaN(length(MID_list),1);
 
 for i=1:num_of_color    
     pointer=para_scanorder{i};
@@ -12,7 +13,8 @@ for i=1:num_of_color
     temp_Nei = Element.Neighbors(pointer);
     temp_Direc = Element.Direction(pointer);    
     temp_MID_list_old = MID_list(pointer);    
-    temp_MID_list_new = temp_MID_list_old;    
+    temp_MID_list_new = temp_MID_list_old;
+    temp_U_list = U_list(pointer);
     parfor idx = 1:n
         if ~isnan(temp_MID_list_old(idx))
             U=temp_U(idx,:); % assign the energy of sigle site clique
@@ -36,8 +38,10 @@ for i=1:num_of_color
             P=exp(-U/T)/sum(exp(-U/T));
             %==========================================================================
             temp_MID_list_new(idx)=GenMID(Mset,P',1);
+            temp_U_list(idx) = U(temp_MID_list_old(idx));
         end        
     end    
-    MID_list(pointer)=temp_MID_list_new;           
+    MID_list(pointer)=temp_MID_list_new;
+    U_list(pointer) = temp_U_list;
 end
 end

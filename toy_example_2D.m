@@ -92,8 +92,14 @@ figure;
 labels = {'feature 1','feature 2'};
 mixturePlot(seg.MU_hat,seg.COV_hat,seg.field_value,seg.latent_field_est,labels);
 
+figure;
+plot(1:Chain_length-1,seg.totalEnergy);
+title('totalEnergy');
+xlabel('Iteration');
+ylabel('total energy');
+
 %% chain diagonose 
-iter = 2;
+iter = 30;
 
 figure;
 plotField(Element,seg.MC_inferred(:,iter),jet);

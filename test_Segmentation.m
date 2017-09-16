@@ -33,7 +33,7 @@ Chain_length = 50;
 seg = segmentation(F.Element,dimension,beta_initial,F.field_value,num_of_clusters,Chain_length);
 % =============================
 %% extend the Markov Chain
-Ext_Chain_length = 50;
+Ext_Chain_length = 400;
 seg = ExtendChain_para(seg,Ext_Chain_length);
 % =============================
 %% postprocess
@@ -48,3 +48,9 @@ title('Information Entropy');
 figure;
 labels = {'NDVI','EC_a'};
 mixturePlot(seg.MU_hat,seg.COV_hat,seg.field_value,seg.latent_field_est,labels);
+
+figure;
+plot(1:length(seg.totalEnergy),seg.totalEnergy);
+title('totalEnergy');
+xlabel('Iteration');
+ylabel('total energy');

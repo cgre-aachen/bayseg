@@ -73,7 +73,7 @@ mixturePlot(mu,SIGMA,observed_features,latent_field,labels);
 
 %% segmentation
 num_of_clusters = 3;
-Chain_length = 100;
+Chain_length = 500;
 dimension = 2;
 beta_initial = [];
 % =============================
@@ -93,7 +93,7 @@ labels = {'feature 1','feature 2'};
 mixturePlot(seg.MU_hat,seg.COV_hat,seg.field_value,seg.latent_field_est,labels);
 
 figure;
-plot(1:Chain_length-1,seg.totalEnergy);
+plot(1:length(seg.totalEnergy),seg.totalEnergy);
 title('totalEnergy');
 xlabel('Iteration');
 ylabel('total energy');

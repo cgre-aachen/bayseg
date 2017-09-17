@@ -38,7 +38,9 @@ for i=1:num_of_color
             P=exp(-U/T)/sum(exp(-U/T));
             %==========================================================================
             temp_MID_list_new(idx)=GenMID(Mset,P',1);
-            temp_U_list(idx) = U(temp_MID_list_old(idx));
+            if temp_MID_list_old(idx) > 0
+                temp_U_list(idx) = U(temp_MID_list_old(idx));
+            end
         end        
     end    
     MID_list(pointer)=temp_MID_list_new;

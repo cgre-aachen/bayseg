@@ -1,4 +1,4 @@
-function [MC_bin,beta_bin]=GenerateMRF(Element,MC_ini,Mset,Chain_length,beta_ini,SigmaProp_ini)
+function [MC_bin,U_bin,beta_bin]=GenerateMRF(Element,MC_ini,Mset,Chain_length,beta_ini,SigmaProp_ini)
 % This function is designed to perform adaptive MCMC simulation of the MRF and the beta vectors at the same time.
 
 C=4.615;
@@ -6,7 +6,8 @@ n=length(MC_ini);
 %===== config the scan oder ====
 [para_scanorder,num_of_color] = chromaticClassification(Element);
 %===== pre-allocation ==========
-MC_bin(n,Chain_length) = 0;
+MC_bin = NaN(n,Chain_length);
+U_bin = NaN(n,Chain_length - 1);
 beta_bin(length(beta_ini),Chain_length) = 0;
 %===== assign known info =======
 MC_bin(:,1) = MC_ini;
@@ -28,7 +29,7 @@ for i=2:Chain_length
     else
         T=C/log(101);
     end    
-    MC_bin(:,i)=Gibbs_samplling(Element,MC_bin(:,i-1),Mset,T,para_scanorder,num_of_color,beta_bin(:,i-1));    
+    [MC_bin(:,i),U_bin(:,i-1)]=Gibbs_samplling(Element,MC_bin(:,i-1),Mset,T,para_scanorder,num_of_color,beta_bin(:,i-1));    
     beta_bin(:,i) = updateBeta(Element,Mset,T,MC_bin(:,i),beta_bin(:,i-1),SigmaProp);
     x = beta_bin(:,i)';
     x_bar=(x_barBefore*(i-1)+x)/i;    

@@ -26,19 +26,19 @@ temp(temp == 0) = NaN;
 plotField(Element,temp,jet);
 title('known info');
 %%
-Chain_length=500;
+Chain_length = 500;
 
 Element = FixElement(Element,MC_knowninfo);
 Element = CalculateU(Element,[0,0]);
 Element = detectNeighborDirection(Element,dimension);
 
-MC_simulated=SimulateMRF(Element,MC_knowninfo,Mset,Chain_length,beta);
+[MC_simulated,U_bin] = SimulateMRF(Element,MC_knowninfo,Mset,Chain_length,beta);
 
 figure;
 plotField(Element,MC_simulated(:,Chain_length),jet);
 title('simulation result');
 
 %%
-U = totalEnergy(Element,MC_simulated,beta);
+U_chain = nansum(U_bin);
 figure;
-plot(2:Chain_length,U(1:Chain_length-1));
+plot(2:length(U_chain),U_chain(2:end));

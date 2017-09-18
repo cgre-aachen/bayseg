@@ -5,14 +5,11 @@ n_var = size(MU,2);
 n_cluster = size(MU,1);
 Combinations = nchoosek(1:n_var,2);
 n_plot = size(Combinations,1);
-%labels = {'F760','LAI','EMI'};
-% labels = {'NDVI z-score','log(EMI) z-score'};
 
 clr_idx = round((size(jet,1)-1)/(n_cluster-1)*((1:n_cluster)-1)+1);
 clr_matrix = jet;
 clr_matrix = clr_matrix(clr_idx,:);
 
-%figure;
 if n_plot>1
     for i = 1:n_plot
         subplot(1,n_plot,i);
@@ -21,7 +18,7 @@ if n_plot>1
         hold on;
         for j = 1:n_cluster
             obj = gmdistribution(MU(j,Combinations(i,:)),COV(Combinations(i,:),Combinations(i,:),j),1);
-            ezcontour(@(x1,x2)pdf(obj,[x1 x2]),XYlim)%,get(gca,{'XLim','YLim'}));
+            ezcontour(@(x1,x2)pdf(obj,[x1 x2]),XYlim);
         end
         hold off;
         title(['feature ',num2str(Combinations(i,1)),' vs. ','feature ',num2str(Combinations(i,2))]);
@@ -35,10 +32,10 @@ else
     hold on;
     for j = 1:n_cluster
         obj = gmdistribution(MU(j,Combinations(i,:)),COV(Combinations(i,:),Combinations(i,:),j),1);
-        ezcontour(@(x1,x2)pdf(obj,[x1 x2]),XYlim)%,get(gca,{'XLim','YLim'}));
+        ezcontour(@(x1,x2)pdf(obj,[x1 x2]),XYlim);
     end
     hold off;
-    title(['feature ',num2str(Combinations(i,1)),' vs. ','feature ',num2str(Combinations(i,2))]);
+    title(['feature ',num2str(Combinations(i,1)),' vs. ','feature ',num2str(Combinations(i,2))],'FontSize',12);
     xlabel(labels{Combinations(i,1)});
     ylabel(labels{Combinations(i,2)});
 end

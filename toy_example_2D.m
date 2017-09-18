@@ -57,19 +57,20 @@ observed_features = simulateSoftData(Element,latent_field,mu,SIGMA);
 
 figure;
 plotField(Element,latent_field,jet);
-title('latent field');
+title('latent field','FontSize',12);
 
 figure;
 plotField(Element,observed_features(:,1),jet);
-title('observed field 1');
+title('observed field 1','FontSize',12);
 
 figure;
 plotField(Element,observed_features(:,2),jet);
-title('observed field 2');
+title('observed field 2','FontSize',12);
 
 figure;
 labels = {'feature 1','feature 2'};
 mixturePlot(mu,SIGMA,observed_features,latent_field,labels);
+
 
 %% segmentation
 num_of_clusters = 3;

@@ -33,7 +33,7 @@ Chain_length = 50;
 seg = segmentation(F.Element,dimension,beta_initial,F.field_value,num_of_clusters,Chain_length);
 % =============================
 %% extend the Markov Chain
-Ext_Chain_length = 400;
+Ext_Chain_length = 250;
 seg = ExtendChain_para(seg,Ext_Chain_length);
 % =============================
 %% postprocess

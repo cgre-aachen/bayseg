@@ -26,7 +26,7 @@ temp(temp == 0) = NaN;
 plotField(Element,temp,jet);
 title('known info');
 %%
-Chain_length = 500;
+Chain_length = 300;
 
 Element = FixElement(Element,MC_knowninfo);
 Element = CalculateU(Element,[0,0]);

@@ -6,7 +6,7 @@ order = 1;
 Element = constructElements(x,y,0,order);
 %%
 Mset=[1 2 3];
-Chain_length = 500;
+Chain_length = 300;
 beta = [2 -0.5 2 -0.5]'; % beta is a column vector
 MC_ini = zeros(length(x)*length(y),1);
 Element = FixElement(Element,MC_ini); % if 0 is filled at a given pixel, the label is not fixed.

@@ -22,7 +22,7 @@ SIGMA(:,:,2)=3*[1.125 0.225; 0.225 0.675];
 SIGMA(:,:,3)=3*[0.5625 0.0225; 0.0225 0.675];
 
 % ========== set which case to use ========
-case_ID = 2;
+case_ID = 3;
 % ========== case 1 =======================
 if case_ID == 1
     for i = 1:block_size^2;
@@ -51,6 +51,17 @@ if case_ID == 2
         end
     end
 end
+% ========== case 3 =====================
+Mset=[1 2 3];
+num_iter = 300;
+beta = [2 -0.5 2 -0.5]'; % beta is a column vector
+MC_ini = zeros(length(x)*length(y),1);
+Element = FixElement(Element,MC_ini); % if 0 is filled at a given pixel, the label is not fixed.
+Element = CalculateU(Element,zeros(1,length(Mset)));
+Element = detectNeighborDirection(Element,2);
+[MC_simulated,U_bin] = SimulateMRF(Element,MC_ini,Mset,num_iter,beta);
+latent_field = MC_simulated(:,num_iter);
+
 % ========== plot the simulated data ====================
 rng(6);
 observed_features = simulateSoftData(Element,latent_field,mu,SIGMA);
@@ -80,6 +91,9 @@ beta_initial = [];
 % =============================
 seg = segmentation(Element,dimension,beta_initial,observed_features,num_of_clusters,Chain_length);
 % =============================
+
+% Ext_Chain_length = 100;
+% seg = ExtendChain_para(seg,Ext_Chain_length);
 
 figure;
 plotField(Element,seg.latent_field_est,jet);
@@ -111,11 +125,11 @@ labels = {'feature 1','feature 2'};
 mixturePlot(seg.mu_bin(:,:,iter),seg.SIGMA_bin(:,:,:,iter),seg.field_value,seg.MC_inferred(:,iter),labels);
 
 % ======================
-new_order = [2 1 3]; % manually adjust the order to make it compatible with the true latent field !!!!!!
+new_order = [1 3 2]; % manually adjust the order to make it compatible with the true latent field !!!!!!
 % ======================
 MCR=CalMCR(latent_field,seg.MC_inferred,new_order);
 figure;
-plot(2:Chain_length,MCR(2:Chain_length));
+plot(2:size(seg.MC_inferred,2),MCR(2:size(seg.MC_inferred,2)));
 title('MCR');
 xlabel('Iteration');
 ylabel('MCR');

@@ -247,10 +247,10 @@ class HMRFGMM:
             self.mu_all.append(mu)  # TODO: this right here
             self.cov_all.append(cov)
             self.labels_all.append(self.data["label"].values)
-            print("iter:", i, "; labels sum:", self.labels_all[-1].sum())
+            # print("iter:", i, "; labels sum:", self.labels_all[-1].sum())
 
             # +1 iteration counter
-            print("gibbs_count:", self.n_gibbs_count)
+            # print("gibbs_count:", self.n_gibbs_count)
             self.n_gibbs_count += 1
 
     def neighbors_define(self):
@@ -272,6 +272,7 @@ class HMRFGMM:
             b, kesi: shape and skew parameters (papers to be digged out by Jack)
             nu: another funky parameter from Alvarez, 2014
         """
+        # TODO: parameter for kesi stuff (see Alvarez, 2014): b, kesi: shape and skew parameters (papers to be digged out by Jack)nu: another funky parameter from Alvarez, 2014
         # calculate lambda
         lam = np.sqrt(np.diag(cov_matrix))
         R = np.diag(1. / lam) @ cov_matrix @ np.diag(1. / lam)

@@ -6,10 +6,11 @@ import numpy as np
 import pandas as pd
 from sklearn import mixture
 from scipy.stats import multivariate_normal, norm
+from copy import copy
 
 
-class Data:
-    def __init__(self, phys_space, feat_space, n_gibbs=5, n_labels=2, beta=0.5, phys_names=None, feat_names=None):
+class HMRFGMM:
+    def __init__(self, phys_space, feat_space, n_gibbs=100, n_labels=2, beta=0.5, phys_names=None, feat_names=None):
         """
 
         :param phys_space: 1-, 2- or 3-dimensional np.ndarray with the physical coordinates
@@ -41,11 +42,15 @@ class Data:
         # pseudocolor all elements
         self.data["color"] = self.pseudocolor_elements()
 
+        # ************************************************
+        # STORAGE ARRAYS
+        # ************************************************
         # initialize global output parameter storage arrays
         self.mu_all = []
         self.cov_all = []
         self.beta_all = []
         self.labels_all = []
+        self.energy_all = []
 
         # initialize other columns
         self.data["label"], self.data["neighbors"] = (None, None)
@@ -53,13 +58,22 @@ class Data:
         # define neighbors
         self.neighbors_define()
 
+        # ************************************************
+        # GAUSSIAN MIXTURE MODEL
+        # ************************************************
         self.gmm_init()
+        self.gmm = mixture.GaussianMixture(n_components=self.n_feat, covariance_type="full")
+        # make initial fit
+        self.gmm.fit(self.data[self.feat_names].values)
+        # initial labeling according to GMM
+        self.labels_all.append(self.gmm_predict_labels())
+        self.data["label"] = self.gmm_predict_labels()
 
         # get initial mu mu: vector of mean values for features for all clusters (n x p matrix: n: number of
         # clusters, p: number of features)
-        self.mu_init = self.clf.means_
+        self.mu_init = self.gmm.means_
         # get initial covariance matrix, (p x p x n)
-        self.cov_init = self.clf.covariances_
+        self.cov_init = self.gmm.covariances_
         # set initial beta
         self.beta_init = beta
 
@@ -93,6 +107,13 @@ class Data:
                 else:
                     self.data.set_value(i, "mrf_energy", self.data.iloc[i]["mrf_energy"] + self.beta_all[-1])
 
+    def energy_mrf_calc(self, labels, beta):
+        """Calculate MRF energy for all elements for given labels and beta."""
+        energy = np.zeros_like(labels)
+        for i in self.data.index:
+            energy[i] = np.sum(labels[self.data.neighbors[i]] != labels[i]) * beta
+        return energy
+
     # def calculate_mrf_energy_all(self):
     #     """Calculates mrf energy for each element."""
     #     for i in self.data.index:
@@ -102,12 +123,14 @@ class Data:
         vals = self.data.iloc[i][self.feat_names].values.astype("float32")
 
         mu = self.mu_all[-1]
+        # print(np.shape(mu))
         cov = self.cov_all[-1]
-
-        like_energy = (0.5 * np.dot(np.dot((vals - mu), np.linalg.inv(cov[self.data.iloc[i]["label"], :, :])),
-                                    (vals - mu).transpose()) + 0.5 * np.log(
+        # print(np.shape(cov))
+        l = self.data.iloc[i]["label"]
+        like_energy = (0.5 * np.dot(np.dot((vals - mu[l, :]), np.linalg.inv(cov[l, :, :])),
+                                    (vals - mu[l, :]).transpose()) + 0.5 * np.log(
             np.linalg.det(cov[self.data.iloc[i]["label"], :, :]))).flatten()
-
+        # print(np.shape(like_energy))
         return like_energy
 
     def calculate_likelihood_energy_labels(self, i):
@@ -118,7 +141,7 @@ class Data:
 
         like_energy_all = np.empty(self.n_labels)
         for l in range(self.n_labels):
-            like_energy_all[l] = (0.5 * np.dot(np.dot((vals - mu), np.linalg.inv(cov[l, :, :])), (vals - mu).transpose()) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))).flatten()
+            like_energy_all[l] = (0.5 * np.dot(np.dot((vals - mu[l, :]), np.linalg.inv(cov[l, :, :])), (vals - mu[l, :]).transpose()) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))).flatten()
         return like_energy_all
         # TODO: maybe combine with calculate_likelihood_energy_element()
 
@@ -146,31 +169,26 @@ class Data:
 
     def gmm_init(self):
         """Initialize GMM and fit it to features."""
-        self.clf = mixture.GaussianMixture(n_components=self.n_feat, covariance_type="full")
+        self.gmm = mixture.GaussianMixture(n_components=self.n_feat, covariance_type="full")
         self.gmm_fit()
 
     def gmm_fit(self):
         """Fit the Gaussian Mixture Model to all feature values."""
-        self.clf.fit(self.data[self.feat_names].values)
+        self.gmm.fit(self.data[self.feat_names].values)
 
-    def gmm_update_labels(self):
+    def gmm_predict_labels(self):
         """Predict labels for each element using the Gaussian Mixture Model."""
-        self.data["label"] = self.clf.predict(self.data[self.feat_names].values)
+        return self.gmm.predict(self.data[self.feat_names].values)
 
     def fit(self):
-        # 0 - Initialize with GMM
-        # already done during class initiation
-
-        # 1 - Assign labels according to GMM
-        self.gmm_update_labels()
-
-        # 3 - Define "funky kesi" hyperparameters TODO: what does this even mean
+        # 3 - Define "funky kesi" hyperparameters
+        # TODO: what does this even mean
         b = np.log(np.sqrt(np.diag(self.cov_init[0, :])))
         kesi = self.n_gibbs * np.ones(self.n_feat)
         nu = self.n_feat + 1
 
         # 4 - Define hyperparameters of prior distribution of mu, separately for each cluster
-        mu_clusters = [self.clf.means_[feat] for feat in range(self.n_feat)]  # use output of GMM
+        mu_clusters = [self.gmm.means_[feat] for feat in range(self.n_feat)]  # use output of GMM
         mu_std_clusters = [[[100, 0.], [0., 100]] for feat in range(self.n_feat)]  # define very wide std
 
         # 5 - Random variables for proposed new mu in feature space
@@ -179,8 +197,6 @@ class Data:
         # define random variables for warp jumps
         rv_jump_mu = multivariate_normal(mean=np.zeros(self.n_feat), cov=np.diag([self.mu_step, self.mu_step]))
         rv_jump_cov = multivariate_normal(mean=np.zeros(self.n_feat), cov=np.diag([self.cov_step, self.cov_step]))
-        #
-        self.labels_all.append(self.data["label"].values)
 
         # loop
         for i in range(self.n_gibbs):
@@ -193,6 +209,10 @@ class Data:
             # ************************************************
             cov_proposed = propose_cov(self.cov_all[-1], rv_jump_cov)
             mu_proposed = propose_mu(self.mu_all[-1], rv_jump_mu)
+
+            mu = copy(self.mu_all[-1])
+            cov = copy(self.cov_all[-1])
+
             # calculate likelihood
             # update alpha
             # apparently alpha seems to be the same as p_labels
@@ -218,8 +238,8 @@ class Data:
                 acc_ratio = log_target_proposed / log_target_prev
 
                 if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):  # accept directly
-                    self.mu_all[-1][label, :] = mu_proposed[label, :]  # TODO: this right here
-                    self.cov_all[-1][label, :] = cov_proposed[label, :]
+                    mu[label, :] = mu_proposed[label, :]  # TODO: this right here
+                    cov[label, :] = cov_proposed[label, :]
 
             # ************************************************
             # Store newly generated field (or keep previous ones)
@@ -233,7 +253,6 @@ class Data:
             print("gibbs_count:", self.n_gibbs_count)
             self.n_gibbs_count += 1
 
-
     def neighbors_define(self):
         for i in self.data.index:
             if i == 0:
@@ -244,8 +263,6 @@ class Data:
                 self.data.set_value(i, "neighbors", [i - 1, i + 1])
                 # so far just above and below for 1D example
                 # TODO: define general methods to find neighbors based on distances
-
-
 
     def logprob_cov(self, cov_matrix, d, b, kesi, nu):
         """Caculate log probability of covariance matrix
@@ -289,7 +306,6 @@ class Data:
         return np.mod(np.array(self.data.index), 2)
         # so far only for 1d data, so just binary switcharoo
         # TODO: implement 2- and 3-D coloring
-
 
 def propose_mu(mu_prev, rv_jump_mu):
     """Propose new covariance function based on prev. cov and RV for cov. jump

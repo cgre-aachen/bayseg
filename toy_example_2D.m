@@ -51,49 +51,72 @@ if case_ID == 2
         end
     end
 end
+% ========== case 3 =====================
+if case_ID == 3
+    Mset=[1 2 3];
+    num_iter = 300;
+    beta = [2 -0.5 2 -0.5]'; % beta is a column vector
+    MC_ini = zeros(length(x)*length(y),1);
+    Element = FixElement(Element,MC_ini); % if 0 is filled at a given pixel, the label is not fixed.
+    Element = CalculateU(Element,zeros(1,length(Mset)));
+    Element = detectNeighborDirection(Element,2);
+    [MC_simulated,U_bin] = SimulateMRF(Element,MC_ini,Mset,num_iter,beta);
+    latent_field = MC_simulated(:,num_iter);
+end
+
 % ========== plot the simulated data ====================
 rng(6);
-field_value = simulateSoftData(Element,latent_field,mu,SIGMA);
+observed_features = simulateSoftData(Element,latent_field,mu,SIGMA);
 
 figure;
 plotField(Element,latent_field,jet);
-title('latent field');
+title('latent field','FontSize',12);
 
 figure;
-plotField(Element,field_value(:,1),jet);
-title('observed field 1');
+plotField(Element,observed_features(:,1),jet);
+title('observed field 1','FontSize',12);
 
 figure;
-plotField(Element,field_value(:,2),jet);
-title('observed field 2');
+plotField(Element,observed_features(:,2),jet);
+title('observed field 2','FontSize',12);
 
 figure;
 labels = {'feature 1','feature 2'};
-mixturePlot(mu,SIGMA,field_value,latent_field,labels);
+mixturePlot(mu,SIGMA,observed_features,latent_field,labels);
+
 
 %% segmentation
 num_of_clusters = 3;
-Chain_length = 100;
+Chain_length = 300;
 dimension = 2;
 beta_initial = [];
 % =============================
-seg = segmentation(Element,dimension,beta_initial,field_value,num_of_clusters,Chain_length);
+seg = segmentation(Element,dimension,beta_initial,observed_features,num_of_clusters,Chain_length);
 % =============================
+
+% Ext_Chain_length = 300;
+% seg = ExtendChain_para(seg,Ext_Chain_length);
 
 figure;
 plotField(Element,seg.latent_field_est,jet);
-title('segmentation result');
-
-figure;
-labels = {'feature 1','feature 2'};
-mixturePlot(seg.MU_hat,seg.COV_hat,seg.field_value,seg.latent_field_est,labels);
+title('Estimated latent field');
 
 figure;
 plotField(Element,seg.InfEntropy,jet);
-title('InfEntropy');
+title('Information entropy');
+
+figure;
+labels = {'Feature 1','Feature 2'};
+mixturePlot(seg.MU_hat,seg.COV_hat,seg.field_value,seg.latent_field_est,labels);
+
+figure;
+plot(1:length(seg.totalEnergy),seg.totalEnergy);
+title('totalEnergy');
+xlabel('Iteration');
+ylabel('Total energy');
 
 %% chain diagonose 
-iter = 2;
+iter = 30;
 
 figure;
 plotField(Element,seg.MC_inferred(:,iter),jet);
@@ -108,7 +131,7 @@ new_order = [2 1 3]; % manually adjust the order to make it compatible with the 
 % ======================
 MCR=CalMCR(latent_field,seg.MC_inferred,new_order);
 figure;
-plot(2:Chain_length,MCR(2:Chain_length));
+plot(2:size(seg.MC_inferred,2),MCR(2:size(seg.MC_inferred,2)));
 title('MCR');
 xlabel('Iteration');
 ylabel('MCR');

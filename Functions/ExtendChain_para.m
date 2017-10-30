@@ -7,7 +7,8 @@ k = seg.num_of_clusters;
 [n,d] = size(seg.field_value);
 num_of_beta = size(seg.beta_bin, 1);
 %===== pre-allocation ==========
-MC_inferred(n,Ext_Chain_length) = 0;
+MC_inferred(n,Ext_Chain_length) = NaN;
+U(n,Ext_Chain_length-1) = NaN;
 mu_bin(k,d,Ext_Chain_length) = 0;
 SIGMA_bin(d,d,k,Ext_Chain_length) = 0;
 beta_bin(num_of_beta,Ext_Chain_length) = 0;
@@ -37,7 +38,7 @@ prior_para = {mean_mu,sigma_mu,mean_beta,sigma_beta,d+1,b_SIGMA,kesi_SIGMA};
 
 %===== MCMC simulation ===========
 for i=2:Ext_Chain_length    
-    [MC_inferred(:,i),mu_bin(:,:,i),SIGMA_bin(:,:,:,i),beta_bin(:,i)]=scanner_para(seg.Element, ...
+    [MC_inferred(:,i),U(:,i-1),mu_bin(:,:,i),SIGMA_bin(:,:,:,i),beta_bin(:,i)]=scanner_para(seg.Element, ...
     	MC_inferred(:,i-1),Mset,1,seg.para_scanorder,seg.num_of_color,seg.field_value,mu_bin(:,:,i-1), ...
     	SIGMA_bin(:,:,:,i-1),beta_bin(:,i-1),prior_para);
     display(i);
@@ -48,6 +49,7 @@ end
 
 
 MC_inferred = cat(2,seg.MC_inferred,MC_inferred);
+U = cat(2,seg.energy_bin,U);
 mu_bin = cat(3,seg.mu_bin,mu_bin);
 SIGMA_bin = cat(4,seg.SIGMA_bin,SIGMA_bin);
 beta_bin = cat(2,seg.beta_bin,beta_bin);
@@ -60,12 +62,14 @@ startPoint = round(Chain_length/5);
 latent_field_est(isnan(sum(Prob,2))) = NaN;
 [MU_hat,MU_std] = CalCenter(mu_bin,startPoint);
 [R,stds,COV_hat,COV_std] = CalCorrCoeff(SIGMA_bin,startPoint);
+[beta_hat,beta_std] = CalBeta(beta_bin,startPoint);
 
 % ========== output ==========================
 seg.latent_field_est = latent_field_est;
 seg.InfEntropy = InfEntropy;
 seg.MU_hat = MU_hat;
 seg.COV_hat = COV_hat;
+seg.beta_hat = beta_hat;
 seg.MC_inferred = MC_inferred;
 seg.mu_bin = mu_bin;
 seg.SIGMA_bin = SIGMA_bin;
@@ -74,6 +78,9 @@ seg.Prob = Prob;
 seg.TotalInfEntr = TotalInfEntr;
 seg.MU_std = MU_std;
 seg.COV_std = COV_std;
+seg.beta_std = beta_std;
 seg.CorrCoeffMatrix = R;
-seg.stdMatrix = stds;    
+seg.stdMatrix = stds;
+seg.energy_bin = U;
+seg.totalEnergy = nansum(U);
 end

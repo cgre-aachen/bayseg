@@ -1,4 +1,4 @@
-function [MC,mu_bin,SIGMA_bin,beta_bin]=GenChain_para(Element,Mset,Chain_length,para_scanorder,num_of_color,y,beta_ini)
+function [MC,U,mu_bin,SIGMA_bin,beta_bin]=GenChain_para(Element,Mset,Chain_length,para_scanorder,num_of_color,y,beta_ini)
 % mu is k by d
 % SIGMA is d by d by k
 % beta is a column vector
@@ -8,6 +8,7 @@ d=size(y,2); % the number of features
 n=length(Element.Color); % the number of elements
 %===== pre-allocation ==========
 MC(n,Chain_length) = NaN;
+U(n,Chain_length-1) = NaN;
 mu_bin(k,d,Chain_length)=0;
 SIGMA_bin(d,d,k,Chain_length)=0;
 beta_bin(length(beta_ini),Chain_length)=0;
@@ -47,7 +48,7 @@ for i=2:Chain_length
         T=C/log(101);
     end
     %=================================
-    [MC(:,i),mu_bin(:,:,i),SIGMA_bin(:,:,:,i),beta_bin(:,i)]=scanner_para(Element,MC(:,i-1),Mset,T,para_scanorder,num_of_color,y,mu_bin(:,:,i-1),SIGMA_bin(:,:,:,i-1),beta_bin(:,i-1),prior_para);
+    [MC(:,i),U(:,i-1),mu_bin(:,:,i),SIGMA_bin(:,:,:,i),beta_bin(:,i)]=scanner_para(Element,MC(:,i-1),Mset,T,para_scanorder,num_of_color,y,mu_bin(:,:,i-1),SIGMA_bin(:,:,:,i-1),beta_bin(:,i-1),prior_para);
     display(i);
     display(mu_bin(:,:,i));
     display(SIGMA_bin(:,:,:,i));

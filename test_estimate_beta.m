@@ -17,12 +17,17 @@ MC_ini = retrieve(Element,sample_image);
 figure;
 plotField(Element,MC_ini,jet);
 %%
-Chain_length=300;
+Chain_length = 500;
 
 Element = FixElement(Element,MC_ini);
 Element = CalculateU(Element,zeros(1,length(Mset)));
 Element = detectNeighborDirection(Element,2);
 
-[MC_est,beta_bin]=GenerateMRF(Element,MC_ini,Mset,Chain_length,beta_ini,SigmaProp_ini);    
+[MC_est,U_bin,beta_bin]=GenerateMRF(Element,MC_ini,Mset,Chain_length,beta_ini,SigmaProp_ini);    
 
 plot(1:Chain_length,beta_bin);
+
+%%
+U_chain = nansum(U_bin);
+figure;
+plot(2:length(U_chain),U_chain(2:end));

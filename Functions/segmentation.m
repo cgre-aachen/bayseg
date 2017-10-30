@@ -30,7 +30,7 @@ end
 
 % =========== HMRF sampling ==================
 
-[MC_inferred,mu_bin,SIGMA_bin,beta_bin]=GenChain_para(Element,Mset,Chain_length,para_scanorder,num_of_color,field_value,beta_initial);
+[MC_inferred,U,mu_bin,SIGMA_bin,beta_bin]=GenChain_para(Element,Mset,Chain_length,para_scanorder,num_of_color,field_value,beta_initial);
 
 % =========== Post_process ==================
 startPoint = round(Chain_length/5);
@@ -63,4 +63,6 @@ seg.COV_std = COV_std;
 seg.beta_std = beta_std;
 seg.CorrCoeffMatrix = R;
 seg.stdMatrix = stds;
+seg.energy_bin = U;
+seg.totalEnergy = nansum(U);
 end

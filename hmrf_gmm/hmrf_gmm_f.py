@@ -52,23 +52,20 @@ class HMRFGMM2:
         # INIT COV (covariances from initial GMM)
         self.covs = np.array([self.gmm.covariances_])
 
-    def gibbs_sample(self, i=-1, verbose=True):
+    def gibbs_sample(self, i=-1, verbose=False):
         # ************************************************
         # CALCULATE TOTAL ENERGY
-        # 1 - calculate energy likelihood
+        # 1 - calculate energy likelihood for each element and label
         energy_like = self.calc_energy_like(self.mus[i], self.covs[i], self.labels[i])
         # 2 - calculate gibbs/mrf energy
         gibbs_energy = self.calc_gibbs_energy(self.labels[i], self.betas[i])
         # 3 - self energy
-        self_energy = 0.
-        # 4 - calculate energy likelihood labels
-        energy_like_labels = self.calc_energy_like_labels(self.mus[i], self.covs[i], self.labels[i])
+        self_energy = np.zeros(self.n_labels)
         # 5 - calculate total energy
         total_energy = energy_like + self_energy + gibbs_energy
-        total_energy_labels = (energy_like_labels.T + total_energy).T
         # ************************************************
         # CALCULATE PROBABILITY OF LABELS
-        labels_prob = calc_labels_prob(total_energy_labels, 1.)  # TODO: What does t mean? Why is it 1?
+        labels_prob = calc_labels_prob(total_energy, 1.)  # TODO: What does t mean? Why is it 1?
         # norm
         labels_prob = (labels_prob.T / np.sum(labels_prob, axis=1)).T  # TODO: Is this correct?
         if verbose:
@@ -80,29 +77,6 @@ class HMRFGMM2:
             print("new labels (sum):", np.sum(new_labels))
 
     def calc_energy_like(self, mu, cov, labels):
-        """
-        Calculate energy likelihood for each element based on Wang et al. 2016, Eq. 29.
-        :param mu: mean
-        :param cov: covariance
-        :param labels: labels
-        :return: 1-,2- or 3-dimensional array containing the energy likelihoods for each element.
-        """
-        energy_like = np.zeros_like(labels)
-        if self.dim == 1:
-            for x in range(len(self.coords)):
-                l = labels[x]
-                energy_like[x] = (0.5 * np.dot(np.dot((self.obs[x] - mu[l, :]), np.linalg.inv(cov[l, :, :])), (self.obs[x] - mu[l, :]).transpose()) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))).flatten()
-        elif self.dim == 2:
-            pass
-            # TODO: 2-dimensional calculation of energy likelihood
-        elif self.dim == 3:
-            pass
-            # TODO: 3-dimensional calculation of energy likelihood
-
-        # TODO: Optimize energy likelihood calculation
-        return energy_like
-
-    def calc_energy_like_labels(self, mu, cov, labels):
         """
 
         :param mu:
@@ -131,13 +105,14 @@ class HMRFGMM2:
         :param beta:
         :return:
         """
-        gibbs_energy = np.zeros_like(labels, dtype="float64")
-
         if self.dim == 1:
-            for i, nl in enumerate(self.neighborhood):
+            # create ndarray for gibbs energy depending on element structure and n_labels
+            gibbs_energy = np.zeros((len(self.coords), self.n_labels))
+            for x, nl in enumerate(self.neighborhood):
                 for n in nl:
-                    if labels[i] != labels[n]:
-                        gibbs_energy[i] += beta
+                    for l in range(self.n_labels):
+                        if l != labels[n]:
+                            gibbs_energy[x, l] += beta
 
         elif self.dim == 2:
             pass

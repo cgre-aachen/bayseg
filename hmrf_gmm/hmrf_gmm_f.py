@@ -7,6 +7,7 @@ import pandas as pd
 from sklearn import mixture
 from scipy.stats import multivariate_normal, norm
 from copy import copy
+from itertools import combinations
 
 
 class HMRFGMM2:
@@ -52,7 +53,7 @@ class HMRFGMM2:
         # INIT COV (covariances from initial GMM)
         self.covs = np.array([self.gmm.covariances_])
 
-    def gibbs_sample(self, i=-1, verbose=False):
+    def gibbs_sample(self, i=-1, verbose=False, t=1., beta_hyper=0.1, mu_hyper=0.0005, cov_hyper=0.00005):
         # ************************************************
         # CALCULATE TOTAL ENERGY
         # 1 - calculate energy likelihood for each element and label
@@ -65,16 +66,118 @@ class HMRFGMM2:
         total_energy = energy_like + self_energy + gibbs_energy
         # ************************************************
         # CALCULATE PROBABILITY OF LABELS
-        labels_prob = calc_labels_prob(total_energy, 1.)  # TODO: What does t mean? Why is it 1?
-        # norm
-        labels_prob = (labels_prob.T / np.sum(labels_prob, axis=1)).T  # TODO: Is this correct?
+        labels_prob = calc_labels_prob(total_energy, t)
         if verbose:
             print("labels_prob:", labels_prob)
         # ************************************************
         # DRAW NEW LABELS FOR EVERY ELEMENT
         new_labels = np.array([np.random.choice(list(range(self.n_obs)), p=labels_prob[x, :]) for x in range(len(self.coords))])
         if verbose:
-            print("new labels (sum):", np.sum(new_labels))
+            print("new labels (sum):",new_labels)
+        # ************************************************
+        # RECALCULATE Gibbs energy with new labels
+        gibbs_energy = self.calc_gibbs_energy(new_labels, self.betas[i])
+        # calculate energy for component coefficient
+        if verbose:
+            print("gibbs_energy:", gibbs_energy)
+        energy_for_comp_coef = gibbs_energy + self_energy
+        # ************************************************
+        # CALCULATE COMPONENT COEFFICIENT
+        comp_coef = calc_labels_prob(energy_for_comp_coef, t)
+        if verbose:
+            print("component coefficient:", comp_coef)
+        # ************************************************
+        # CALCULATE LOG MIXTURE DENSITY for previous mu and cov
+        lmd_prev = self.calc_sum_log_mixture_density(comp_coef, self.mus[i], self.covs[i])
+        # ************************************************
+        # PROPOSALS
+        beta_prop = self.propose_beta(self.betas[-1], beta_hyper)
+        mu_prop = self.propose_mu(self.mus[-1], mu_hyper)
+
+    def propose_beta(self, beta_prev, beta_hyper):
+        # create proposal covariance depending on physical dimensionality
+        dim = [1, 8, 13]
+        sigma_prop = np.eye(dim[self.dim - 1]) * beta_hyper
+        # draw from multivariate normal distribution and return
+        return multivariate_normal(mean=beta_prev, cov=sigma_prop).rvs()
+
+    def propose_mu(self, mu_prev, mu_hyper):
+        # create proposal covariance depending on observation dimensionality
+        sigma_prop = np.eye(self.n_obs) * mu_hyper
+        # prepare matrix
+        mu_prop = np.ones((self.n_obs, self.n_labels))
+        # loop over labels
+        for l in range(self.n_labels):
+            mu_prop[l, :] = multivariate_normal(mean=mu_prev[l, :], cov=np.eye(self.n_obs) * mu_hyper).rvs()
+        return mu_prop
+
+    def propose_cov(self, cov_prev, cov_hyper, theta_hyper):
+        # do svd on the previous covariance matrix
+        comb = list(combinations(range(self.n_obs), 2))
+        n_axis = len(comb)
+        theta_jump = multivariate_normal(mean=[0 for i in range(n_axis)], cov=np.ones(n_axis) * theta_hyper).rvs()
+        cov_prop = np.zeros_like(cov_prev)
+
+        for l in range(self.n_labels):
+            v_l, d_l, v_l = np.linalg.svd(cov_prev[l, :, :])
+            # generate d jump
+            log_d_jump = multivariate_normal(mean=[0 for i in range(self.n_obs)], cov=np.eye(self.n_obs) * cov_hyper).rvs()
+            # sum towards d proposal
+            # if l == 0:
+            d_prop = np.diag(np.exp(np.log(d_l) + log_d_jump))
+            # else:
+            #    d_prop = np.vstack((d_prop, np.exp(np.log(d_l) + np.log(d_jump))))
+
+            # now tackle generating v jump
+            a = np.eye(self.n_obs)
+            for j in range(n_axis):
+                rotation_matrix = self._cov_proposal_rotation_matrix(v_l[:, comb[j][0]], v_l[:, comb[j][1]], theta_jump)
+                # print("rot mat:", rotation_matrix)
+                a = np.matmul(rotation_matrix, a)
+            # print("v_l:", v_l)
+            v_prop = np.matmul(a,v_l)
+            # print("d_prop:", d_prop)
+            # print("v_prop:", v_prop)
+            cov_prop[l, :, :] = np.matmul(v_prop, d_prop, v_prop)
+
+        return cov_prop
+
+    def _cov_proposal_rotation_matrix(self, x, y, theta):
+        """
+
+        :param x, y: two base vectors defining a plane
+        :param theta: rotation angle in this plane
+        :return: rotation matrix for covariance proposal step
+        """
+        uu = x / np.linalg.norm(x)
+        vv = y - uu.conj().T * y * uu
+        vv = vv / np.linalg.norm(vv)
+        # what is happening
+        rotation_matrix = np.eye(len(x)) - uu * uu.conj().T - vv * vv.conj().T + np.array([uu, vv]) * np.array([[np.cos(theta), -np.sin(theta)],[np.sin(theta), np.cos(theta)]]) * np.array([uu, vv]).conj().T
+        return rotation_matrix
+
+    def calc_sum_log_mixture_density(self, comp_coef, mu, cov):
+        """
+        Calculate sum of log mixture density.
+        :param comp_coef:
+        :param mu:
+        :param cov:
+        :return: lmd
+        """
+        if self.dim == 1:
+            lmd = 0.
+            for x in range(len(self.coords)):
+                storage2 = []
+                for l in range(self.n_labels):
+                    storage2.append(comp_coef[x, l] * multivariate_normal(mean=mu[l, :], cov=cov[l, :]).pdf(self.obs[x]))
+                lmd += (np.log(np.sum(storage2)))
+
+        else:
+            pass
+        # TODO: 2-dimensional log mixture density
+        # TODO: 3-dimensional log mixture density
+
+        return lmd
 
     def calc_energy_like(self, mu, cov, labels):
         """
@@ -84,13 +187,13 @@ class HMRFGMM2:
         :param labels:
         :return:
         """
-        energy_like_labels = copy(self.obs)
+        energy_like_labels = np.zeros((len(self.coords), self.n_labels))
         if self.dim == 1:
             for x in range(len(self.coords)):
-                l = labels[x]
-                energy_like_labels[l] = (0.5 * np.dot(np.dot((self.obs[x] - mu[l, :]), np.linalg.inv(cov[l, :, :])),
-                                                   (self.obs[x] - mu[l, :]).transpose()) + 0.5 * np.log(
-                    np.linalg.det(cov[l, :, :]))).flatten()
+                for l in  range(self.n_labels):
+                    energy_like_labels[x] = (0.5 * np.dot(np.dot((self.obs[x] - mu[l, :]), np.linalg.inv(cov[l, :, :])),
+                                                       (self.obs[x] - mu[l, :]).transpose()) + 0.5 * np.log(
+                        np.linalg.det(cov[l, :, :]))).flatten()
         else:
             pass
         # TODO: 2-dimensional calculation of energy likelihood labels
@@ -127,7 +230,7 @@ class HMRFGMM2:
 
 def calc_labels_prob(te, t):
     """"Calculate labels probability for array of total energies (te) and totally arbitrary skalar value t."""
-    return np.exp(-te/t) / np.sum(np.exp(-te/t))
+    return (np.exp(-te/t).T / np.sum(np.exp(-te/t), axis=1)).T
 
 
 def define_neighborhood_system(coordinates):

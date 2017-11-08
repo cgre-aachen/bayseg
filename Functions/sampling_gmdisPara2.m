@@ -19,7 +19,7 @@ sigma_jump(:,:,2) = 0.00005*ones(1,d);
 Combinations = nchoosek(1:d,2);
 n_axis = size(Combinations,1);
 
-parfor i=1:n_Mset     
+parfor i=1:n_Mset
     R = mvnrnd(zeros(1,d),sigma_jump);
     jump_mu = R(1,:);
     jump_logD = R(2,:);

@@ -9,22 +9,147 @@ from scipy.stats import multivariate_normal, norm
 from copy import copy
 
 
-class HMRFGMM:
-    def __init__(self, phys_space, feat_space, n_gibbs=100, n_labels=2, beta=0.5, phys_names=None, feat_names=None):
+class HMRFGMM2:
+    def __init__(self, coordinates, observations, n_labels=2, beta_init=0.5):
         """
 
-        :param phys_space: 1-, 2- or 3-dimensional np.ndarray with the physical coordinates
-        :param feat_space: n-dimensional np.ndarray with feature data
+        :param coordinates:
+        :param observations:
+        :param n_labels:
+        :param beta_init:
+        """
+
+        # store physical coordinates, set dimensionality
+        self.coords = coordinates
+        self.dim = np.shape(coordinates)[1]
+        # store observations
+        self.obs = observations
+        self.n_obs = np.shape(observations)[1]
+        # store number of labels
+        self.n_labels = n_labels
+        # ************************************************
+        # INIT STORAGE ARRAYS
+        self.betas = np.array([beta_init])  # initial beta
+        #self.mus = np.array([], dtype=object)
+        #self.covs = np.array([], dtype=object)
+        #self.labels = np.array([], dtype=object)
+        # ************************************************
+        # generate neighborhood system
+        self.neighborhood = define_neighborhood_system(coordinates)
+        # ************************************************
+        # INIT GAUSSIAN MIXTURE MODEL
+        self.gmm = mixture.GaussianMixture(n_components=self.n_obs, covariance_type="full")
+        # fit it to features
+        self.gmm.fit(self.obs)
+        # do initial prediction based on fit and observations, store as first entry in labels
+        # ************************************************
+        # INIT LABELS based on GMM
+        self.labels = np.array([self.gmm.predict(self.obs)])
+        # ************************************************
+        # INIT MU (mean from initial GMM)
+        self.mus = np.array([self.gmm.means_])
+        # ************************************************
+        # INIT COV (covariances from initial GMM)
+        self.covs = np.array([self.gmm.covariances_])
+
+    def gibbs_sample(self, i=-1):
+        # ************************************************
+        # CALCULATE TOTAL ENERGY
+        # 1 - calculate energy likelihood
+        energy_like = self.calc_energy_like(self.mus[i], self.covs[i], self.labels[i])
+        # 2 - calculate gibbs/mrf energy
+        gibbs_energy = self.calc_gibbs_energy(self.labels[i], self.betas[i])
+        # 3 - self energy
+        self_energy = 0.
+
+    def calc_energy_like(self, mu, cov, labels):
+        """
+        Calculate energy likelihood for each element based on Wang et al. 2016, Eq. 29.
+        :param mu: mean
+        :param cov: covariance
+        :param labels: labels
+        :return: 1-,2- or 3-dimensional array containing the energy likelihoods for each element.
+        """
+        energy_like = np.zeros_like(self.coords)
+        if self.dim == 1:
+            for x in range(len(self.coords)):
+                l = labels[x]
+                energy_like[x] = (0.5 * np.dot(np.dot((self.obs[x] - mu[l, :]), np.linalg.inv(cov[l, :, :])), (self.obs[x] - mu[l, :]).transpose()) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))).flatten()
+        elif self.dim == 2:
+            pass
+            # TODO: 2-dimensional calculation of energy likelihood
+        elif self.dim == 3:
+            pass
+            # TODO: 3-dimensional calculation of energy likelihood
+
+        # TODO: Optimize energy likelihood calculation
+        return energy_like
+
+    def calc_gibbs_energy(self, labels, beta):
+        gibbs_energy = np.zeros_like(labels, dtype="float64")
+
+        if self.dim == 1:
+            for i, nl in enumerate(self.neighborhood):
+                for n in nl:
+                    if labels[i] != labels[n]:
+                        gibbs_energy[i] += beta
+
+        elif self.dim == 2:
+            pass
+            # TODO: 2-dimensional calculation of gibbs energy
+        elif self.dim == 3:
+            pass
+            # TODO: 3-dimensional calculation of gibbs energy
+
+        # TODO: Optimize gibbs energy calculation
+        return gibbs_energy
+
+
+def define_neighborhood_system(coordinates):
+    dim = np.shape(coordinates)[1]
+    # TODO: neighborhood array creation for 2+ dimensions
+    neighbors = [None for i in range(len(coordinates))]
+
+    if dim == 1:
+        for i, c in enumerate(coordinates):
+            if i == 0:
+                neighbors[i] = [i + 1]
+            elif i == np.shape(coordinates)[0] - 1:
+                neighbors[i] = [i - 1]
+            else:
+                neighbors[i] = [i - 1, i + 1]
+
+    elif dim == 2:
+        pass
+        # TODO: neighborhood system for 2 dimensions
+
+    elif dim == 3:
+        pass
+        # TODO: neighborhood system for 3 dimensions
+
+    return neighbors
+
+# ************************************************************************************************
+# ************************************************************************************************
+# ************************************************************************************************
+
+
+class HMRFGMM:
+    def __init__(self, coordinates, observations, n_labels=2, beta_init=0.5, phys_names=None, feat_names=None):
+        """
+
+        :param coordinates: 1-, 2- or 3-dimensional np.ndarray with the physical coordinates
+        :param observations: n-dimensional np.ndarray with feature data
         """
         # create feature names if not given
-        self.n_feat = np.shape(feat_space)[1]
+        self.n_feat = np.shape(observations)[1]
         if not feat_names:
-            self.feat_names = ["f" + str(i) for i in range(np.shape(feat_space)[1])]
+            self.feat_names = ["f" + str(i) for i in range(np.shape(observations)[1])]
         else:
             self.feat_names = feat_names
 
         # create dimension names if not given
-        self.phys_dim = np.shape(phys_space)[1]
+        self.phys_dim = np.shape(coordinates)[1]
         if not phys_names:
             if self.phys_dim == 1:
                 self.phys_names = ["x"]
@@ -37,9 +162,9 @@ class HMRFGMM:
 
         # data frame initialization
         self._cols = self.phys_names + self.feat_names
-        self.data = pd.DataFrame(np.hstack((phys_space, feat_space)), columns=self._cols)
+        self.data = pd.DataFrame(np.hstack((coordinates, observations)), columns=self._cols)
 
-        # pseudocolor all elements
+        # pseudocolor all elements for parallelization
         self.data["color"] = self.pseudocolor_elements()
 
         # ************************************************
@@ -50,12 +175,14 @@ class HMRFGMM:
         self.cov_all = []
         self.beta_all = []
         self.labels_all = []
-        self.energy_all = []
+        self.energy_mrf_all = []
+        self.energy_like_all = []
+        self.energy_self_all = []
+        self.neighbors_all = []
+        self.colors_all = []
 
-        # initialize other columns
-        self.data["label"], self.data["neighbors"] = (None, None)
-        self.data["mrf_energy"], self.data["self_energy"] = (0, 0)
         # define neighbors
+        self.data["neighbors"] = None
         self.neighbors_define()
 
         # ************************************************
@@ -75,7 +202,7 @@ class HMRFGMM:
         # get initial covariance matrix, (p x p x n)
         self.cov_init = self.gmm.covariances_
         # set initial beta
-        self.beta_init = beta
+        self.beta_init = beta_init
 
         self.mu_all.append(self.mu_init)
         self.cov_all.append(self.cov_init)
@@ -85,13 +212,12 @@ class HMRFGMM:
         self.cov_step = 0.00005
 
         # number of gibbs iterations (max and current)
-        self.n_gibbs = n_gibbs
         self.n_gibbs_count = 0
 
         # number of labels
         self.n_labels = n_labels
 
-    def calculate_mrf_energy_element(self, i):
+    def calculate_gibbs_energy_element(self, i):
         """Calculates MRF energy for element i."""
         # reset mrf energy to 0
         self.data.set_value(i, "mrf_energy", 0)
@@ -106,13 +232,6 @@ class HMRFGMM:
                     self.data.set_value(i, "mrf_energy", self.data.iloc[i]["mrf_energy"] + self.beta_init)
                 else:
                     self.data.set_value(i, "mrf_energy", self.data.iloc[i]["mrf_energy"] + self.beta_all[-1])
-
-    def energy_mrf_calc(self, labels, beta):
-        """Calculate MRF energy for all elements for given labels and beta."""
-        energy = np.zeros_like(labels)
-        for i in self.data.index:
-            energy[i] = np.sum(labels[self.data.neighbors[i]] != labels[i]) * beta
-        return energy
 
     # def calculate_mrf_energy_all(self):
     #     """Calculates mrf energy for each element."""
@@ -166,6 +285,7 @@ class HMRFGMM:
         """Gibbs sampling: directly update all the labels given their calculated energy."""
         for i in self.data.index:
             self.redraw_element_label(i)
+        # TODO: make a more coherent gibbs sampling function
 
     def gmm_init(self):
         """Initialize GMM and fit it to features."""
@@ -180,11 +300,11 @@ class HMRFGMM:
         """Predict labels for each element using the Gaussian Mixture Model."""
         return self.gmm.predict(self.data[self.feat_names].values)
 
-    def fit(self):
+    def fit(self, n_gibbs):
         # 3 - Define "funky kesi" hyperparameters
         # TODO: what does this even mean
         b = np.log(np.sqrt(np.diag(self.cov_init[0, :])))
-        kesi = self.n_gibbs * np.ones(self.n_feat)
+        kesi = n_gibbs * np.ones(self.n_feat)
         nu = self.n_feat + 1
 
         # 4 - Define hyperparameters of prior distribution of mu, separately for each cluster
@@ -199,7 +319,7 @@ class HMRFGMM:
         rv_jump_cov = multivariate_normal(mean=np.zeros(self.n_feat), cov=np.diag([self.cov_step, self.cov_step]))
 
         # loop
-        for i in range(self.n_gibbs):
+        for i in range(n_gibbs):
             # ************************************************
             # STEP 1: GIBBS SAMPLING (i.e.: update labels)
             # ************************************************
@@ -238,7 +358,7 @@ class HMRFGMM:
                 acc_ratio = log_target_proposed / log_target_prev
 
                 if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):  # accept directly
-                    mu[label, :] = mu_proposed[label, :]  # TODO: this right here
+                    mu[label, :] = mu_proposed[label, :]
                     cov[label, :] = cov_proposed[label, :]
 
             # ************************************************

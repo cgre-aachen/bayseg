@@ -30,9 +30,9 @@ class HMRFGMM2:
         # ************************************************
         # INIT STORAGE ARRAYS
         self.betas = np.array([beta_init])  # initial beta
-        #self.mus = np.array([], dtype=object)
-        #self.covs = np.array([], dtype=object)
-        #self.labels = np.array([], dtype=object)
+        # self.mus = np.array([], dtype=object)
+        # self.covs = np.array([], dtype=object)
+        # self.labels = np.array([], dtype=object)
         # ************************************************
         # generate neighborhood system
         self.neighborhood = define_neighborhood_system(coordinates)
@@ -52,7 +52,7 @@ class HMRFGMM2:
         # INIT COV (covariances from initial GMM)
         self.covs = np.array([self.gmm.covariances_])
 
-    def gibbs_sample(self, i=-1):
+    def gibbs_sample(self, i=-1, verbose=True):
         # ************************************************
         # CALCULATE TOTAL ENERGY
         # 1 - calculate energy likelihood
@@ -61,6 +61,23 @@ class HMRFGMM2:
         gibbs_energy = self.calc_gibbs_energy(self.labels[i], self.betas[i])
         # 3 - self energy
         self_energy = 0.
+        # 4 - calculate energy likelihood labels
+        energy_like_labels = self.calc_energy_like_labels(self.mus[i], self.covs[i], self.labels[i])
+        # 5 - calculate total energy
+        total_energy = energy_like + self_energy + gibbs_energy
+        total_energy_labels = (energy_like_labels.T + total_energy).T
+        # ************************************************
+        # CALCULATE PROBABILITY OF LABELS
+        labels_prob = calc_labels_prob(total_energy_labels, 1.)  # TODO: What does t mean? Why is it 1?
+        # norm
+        labels_prob = (labels_prob.T / np.sum(labels_prob, axis=1)).T  # TODO: Is this correct?
+        if verbose:
+            print("labels_prob:", labels_prob)
+        # ************************************************
+        # DRAW NEW LABELS FOR EVERY ELEMENT
+        new_labels = np.array([np.random.choice(list(range(self.n_obs)), p=labels_prob[x, :]) for x in range(len(self.coords))])
+        if verbose:
+            print("new labels (sum):", np.sum(new_labels))
 
     def calc_energy_like(self, mu, cov, labels):
         """
@@ -70,7 +87,7 @@ class HMRFGMM2:
         :param labels: labels
         :return: 1-,2- or 3-dimensional array containing the energy likelihoods for each element.
         """
-        energy_like = np.zeros_like(self.coords)
+        energy_like = np.zeros_like(labels)
         if self.dim == 1:
             for x in range(len(self.coords)):
                 l = labels[x]
@@ -85,7 +102,35 @@ class HMRFGMM2:
         # TODO: Optimize energy likelihood calculation
         return energy_like
 
+    def calc_energy_like_labels(self, mu, cov, labels):
+        """
+
+        :param mu:
+        :param cov:
+        :param labels:
+        :return:
+        """
+        energy_like_labels = copy(self.obs)
+        if self.dim == 1:
+            for x in range(len(self.coords)):
+                l = labels[x]
+                energy_like_labels[l] = (0.5 * np.dot(np.dot((self.obs[x] - mu[l, :]), np.linalg.inv(cov[l, :, :])),
+                                                   (self.obs[x] - mu[l, :]).transpose()) + 0.5 * np.log(
+                    np.linalg.det(cov[l, :, :]))).flatten()
+        else:
+            pass
+        # TODO: 2-dimensional calculation of energy likelihood labels
+        # TODO: 3-dimensional calculation of energy likelihood labels
+
+        return energy_like_labels
+
     def calc_gibbs_energy(self, labels, beta):
+        """
+        Calculate Gibbs energy for each element.
+        :param labels:
+        :param beta:
+        :return:
+        """
         gibbs_energy = np.zeros_like(labels, dtype="float64")
 
         if self.dim == 1:
@@ -103,6 +148,11 @@ class HMRFGMM2:
 
         # TODO: Optimize gibbs energy calculation
         return gibbs_energy
+
+
+def calc_labels_prob(te, t):
+    """"Calculate labels probability for array of total energies (te) and totally arbitrary skalar value t."""
+    return np.exp(-te/t) / np.sum(np.exp(-te/t))
 
 
 def define_neighborhood_system(coordinates):
@@ -270,6 +320,7 @@ class HMRFGMM:
 
     def calculate_combined_energy(self, i):
         """Sum up all energies."""
+        # print(np.shape(np.sum([self.calculate_likelihood_energy_element(i), self.calculate_likelihood_energy_labels(i), self.calculate_self_energy(i)])))
         return np.sum([self.calculate_likelihood_energy_element(i), self.calculate_likelihood_energy_labels(i), self.calculate_self_energy(i)])
 
     def calculate_p_labels(self, i):

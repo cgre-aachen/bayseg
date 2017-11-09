@@ -29,7 +29,7 @@ display(beta_bin(:,1));
 %======= define the hyperparameters =======================================
 mean_mu = GMModel.mu;
 sigma_mu = zeros(d,d,k);
-b_SIGMA = zeros(k,d);
+b_SIGMA = zeros(k,d);  % first parameter for covariance prior distribution
 for i = 1:k
     sigma_mu(:,:,i) = diag(100*ones(d,1));
     b_SIGMA(i,:) = log(diag(GMModel.Sigma(:,:,i)).^(1/2))';

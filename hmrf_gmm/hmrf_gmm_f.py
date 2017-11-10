@@ -8,14 +8,15 @@ Approach based on Wang et al. 2016 paper
 import sys
 import numpy as np
 from sklearn import mixture
-from scipy.stats import multivariate_normal, norm
+from scipy.stats import multivariate_normal, norm, lognorm
 from copy import copy
 from itertools import combinations
 import tqdm
+import matplotlib.pyplot as plt
 
 
 class HMRFGMM:
-    def __init__(self, coordinates, observations, n_labels=2, beta_init=0.5):
+    def __init__(self, coordinates, observations, n_labels=2, beta_init=1):
         """
 
         :param coordinates:
@@ -62,6 +63,7 @@ class HMRFGMM:
         # beta
         if self.dim == 1:
             self.prior_beta = norm(beta_init, np.eye(1)*100)
+
         else:
             pass
             # TODO: 2d and 3d implementation of beta prior# mu
@@ -83,16 +85,17 @@ class HMRFGMM:
         self.nu = self.n_obs + 1
         # ************************************************************************************************
 
-    def fit(self, n, verbose=False):
+    def fit(self, n, beta_jump_length=1, verbose=False):
         """
 
         :param n:
+        :param verbose:
         :return:
         """
         for g in tqdm.trange(n):
             self.gibbs_sample()
 
-    def gibbs_sample(self, verbose=False, t=1., beta_jump_length=0.1, mu_jump_length=0.0005,
+    def gibbs_sample(self, verbose=False, t=1., beta_jump_length=1, mu_jump_length=0.0005,
                      cov_jump_length=0.00005, theta_jump_length=0.0005):
         """
 
@@ -144,25 +147,13 @@ class HMRFGMM:
         comp_coef = calc_labels_prob(energy_for_comp_coef, t)
 
         # ************************************************************************************************
-        # CALCULATE LOG MIXTURE DENSITY for previous mu and cov
-        lmd_prev = self.calc_sum_log_mixture_density(comp_coef, self.mus[i], self.covs[i])
-
-        # ************************************************************************************************
         # ************************************************************************************************
         # PROPOSAL STEP
         # make proposals for beta, mu and cov
         beta_prop = self.propose_beta(self.betas[-1], beta_jump_length)
+        print("beta prop:", beta_prop)
         mu_prop = self.propose_mu(self.mus[-1], mu_jump_length)
         cov_prop = self.propose_cov(self.covs[-1], cov_jump_length, theta_jump_length)
-
-        # ************************************************************************************************
-        # calculate proposal component coefficient
-        # gibbs_energy_prop = self.calc_gibbs_energy(new_labels, beta_prop)  # calculate gibbs energy with new labels and proposed beta
-        # energy_for_comp_coef_prop = gibbs_energy_prop + self_energy
-        # comp_coef_prop = calc_labels_prob(energy_for_comp_coef_prop, t)
-
-        # calculate log mixture density for proposed mu and cov
-        lmd_prop = self.calc_sum_log_mixture_density(comp_coef, mu_prop, cov_prop)
 
         # ************************************************************************************************
         # COMPARE THE SHIT FOR EACH LABEL FOR EACH SHIT
@@ -171,61 +162,88 @@ class HMRFGMM:
         mu_next = copy(self.mus[-1])
         cov_next = copy(self.covs[-1])
 
-        # compare beta
-        lp_beta_prev = self.log_prior_density_beta(self.betas[-1])
-        lp_beta_prop = self.log_prior_density_beta(beta_prop)
-
         for l in range(self.n_labels):
-            # logprob prior density for covariance
-            lp_cov_prev = self.log_prior_density_cov(self.covs[-1], l)
-            lp_cov_prop = self.log_prior_density_cov(cov_prop, l)
-            if verbose:
-                print("lp_cov_prev:", lp_cov_prev)
-                print("lp_cov_prop:", lp_cov_prop)
-
+            # **************************************************************
+            # UPDATE MU
             # logprob prior density for mu
-            lp_mu_prev = self.log_prior_density_mu(self.mus[-1], l)
-            lp_mu_prop = self.log_prior_density_mu(mu_prop, l)
-            if verbose:
-                print("lp_mu_prev:", lp_mu_prev)
-                print("lp_mu_prop:", lp_mu_prop)
+            mu_temp = copy(mu_next)
+            mu_temp[l, :] = mu_prop[l, :]
+
+            lp_mu_prev = self.log_prior_density_mu(mu_next, l)
+            lp_mu_prop = self.log_prior_density_mu(mu_temp, l)
+
+            lmd_prev = self.calc_sum_log_mixture_density(comp_coef, mu_next, cov_next)
+            # calculate log mixture density for proposed mu and cov
+            lmd_prop = self.calc_sum_log_mixture_density(comp_coef, mu_temp, cov_next)
 
             # combine
-            log_target_prev = lmd_prev + lp_cov_prev + lp_mu_prev + lp_beta_prev
-            log_target_prop = lmd_prop + lp_cov_prop + lp_mu_prop + lp_beta_prev
+            log_target_prev = lmd_prev + lp_mu_prev
+            log_target_prop = lmd_prop + lp_mu_prop
+
             # acceptance ratio
-            acc_ratio = log_target_prop / log_target_prev
+            acc_ratio = np.exp(log_target_prop - log_target_prev)
 
             if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
                 # replace old with new if accepted
                 mu_next[l, :] = mu_prop[l, :]
+
+        self.mus.append(mu_next)
+
+        for l in range(self.n_labels):
+            # **************************************************************
+            # UPDATE COVARIANCE
+            cov_temp = copy(cov_next)
+            cov_temp[l, :, :] = cov_prop[l, :, :]
+
+            # logprob prior density for covariance
+            lp_cov_prev = self.log_prior_density_cov(cov_next, l)
+            lp_cov_prop = self.log_prior_density_cov(cov_temp, l)
+
+            lmd_prev = self.calc_sum_log_mixture_density(comp_coef, mu_next, cov_next)
+            # calculate log mixture density for proposed mu and cov
+            lmd_prop = self.calc_sum_log_mixture_density(comp_coef, mu_next, cov_temp)
+
+            # combine
+            log_target_prev = lmd_prev + lp_cov_prev
+            log_target_prop = lmd_prop + lp_cov_prop
+
+            # acceptance ratio
+            acc_ratio = np.exp(log_target_prop - log_target_prev)
+
+            if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
+                # replace old with new if accepted
                 cov_next[l, :] = cov_prop[l, :]
 
         # append cov and mu
-        self.mus.append(mu_next)
         self.covs.append(cov_next)
 
-        lp_mu_prev = self.log_prior_density_mu(self.mus[i], l)
-        lp_cov_prev = self.log_prior_density_cov(self.covs[i], l)
-        lmd_prev = self.calc_sum_log_mixture_density(comp_coef, self.mus[i], self.covs[i])
+        # **************************************************************
+        # UPDATE BETA
+        lp_beta_prev = self.log_prior_density_beta(self.betas[-1])
+        lp_beta_prop = self.log_prior_density_beta(beta_prop)
+
+        lmd_prev = self.calc_sum_log_mixture_density(comp_coef, self.mus[-1], self.covs[-1])
 
         gibbs_energy_prop = self.calc_gibbs_energy(new_labels, beta_prop)  # calculate gibbs energy with new labels and proposed beta
         energy_for_comp_coef_prop = gibbs_energy_prop + self_energy
         comp_coef_prop = calc_labels_prob(energy_for_comp_coef_prop, t)
 
-        lmd_prop = self.calc_sum_log_mixture_density(comp_coef_prop, self.mus[i], self.covs[i])
+        lmd_prop = self.calc_sum_log_mixture_density(comp_coef_prop, self.mus[-1], self.covs[-1])
 
-        log_target_prev = lmd_prev + lp_cov_prev + lp_mu_prev + lp_beta_prev
-        log_target_prop = lmd_prop + lp_cov_prev + lp_mu_prev + lp_beta_prop
+        print("lmd_prev:", lmd_prev)
+        print("lp_beta_prev:", lp_beta_prev)
+        log_target_prev = lmd_prev + lp_beta_prev
+        print("lmd_prop:", lmd_prop)
+        print("lp_beta_prop:", lp_beta_prop)
+        log_target_prop = lmd_prop + lp_beta_prop
 
-        acc_ratio = log_target_prop / log_target_prev
+        acc_ratio = np.exp(log_target_prop - log_target_prev)
+        print("beta acc_ratio:", acc_ratio)
+
         if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
             self.betas.append(beta_prop)
         else:
             self.betas.append(self.betas[-1])
-
-        if verbose:
-            print("Gibbs sample completed.")
 
     def log_prior_density_mu(self, mu, label):
         """
@@ -278,6 +296,7 @@ class HMRFGMM:
         dim = [1, 4, 13]
         sigma_prop = np.eye(dim[self.dim - 1]) * beta_jump_length
         # draw from multivariate normal distribution and return
+        # return np.exp(multivariate_normal(mean=np.log(beta_prev), cov=sigma_prop).rvs())
         return multivariate_normal(mean=beta_prev, cov=sigma_prop).rvs()
 
     def propose_mu(self, mu_prev, mu_jump_length):
@@ -354,10 +373,14 @@ class HMRFGMM:
         """
         if self.dim == 1:
             lmd = 0.
+
             for x in range(len(self.coords)):
                 storage2 = []
                 for l in range(self.n_labels):
-                    storage2.append(comp_coef[x, l] * multivariate_normal(mean=mu[l, :], cov=cov[l, :]).pdf(self.obs[x]))
+                    a = comp_coef[x, l] * multivariate_normal(mean=mu[l, :], cov=cov[l, :, :]).pdf(self.obs[x])
+                    # print(a)
+                    storage2.append(a)
+
                 lmd += (np.log(np.sum(storage2)))
 
         else:
@@ -417,6 +440,25 @@ class HMRFGMM:
 
         # TODO: Optimize gibbs energy calculation
         return gibbs_energy
+
+    def mcr(self, true_labels):
+        mcr_vals = []
+        n = len(true_labels)  # TODO: 2d and 3d implementation for MCR
+        for label in self.labels:
+            missclassified = np.count_nonzero(true_labels - label)
+            mcr_vals.append(missclassified / n)
+        return mcr_vals
+
+
+
+
+
+    def plot_mu(self, feature):
+        for l in range(self.n_labels):
+            ax = plt.plot(np.array(self.mus)[:, :, feature][:, l], label=str(l))
+        return ax
+
+
 
 
 def _cov_proposal_rotation_matrix(x, y, theta):

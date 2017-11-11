@@ -13,6 +13,7 @@ from copy import copy
 from itertools import combinations
 import tqdm
 import matplotlib.pyplot as plt
+from matplotlib import gridspec
 
 
 class HMRFGMM:
@@ -151,7 +152,7 @@ class HMRFGMM:
         # PROPOSAL STEP
         # make proposals for beta, mu and cov
         beta_prop = self.propose_beta(self.betas[-1], beta_jump_length)
-        print("beta prop:", beta_prop)
+        # print("beta prop:", beta_prop)
         mu_prop = self.propose_mu(self.mus[-1], mu_jump_length)
         cov_prop = self.propose_cov(self.covs[-1], cov_jump_length, theta_jump_length)
 
@@ -230,15 +231,15 @@ class HMRFGMM:
 
         lmd_prop = self.calc_sum_log_mixture_density(comp_coef_prop, self.mus[-1], self.covs[-1])
 
-        print("lmd_prev:", lmd_prev)
-        print("lp_beta_prev:", lp_beta_prev)
+        # print("lmd_prev:", lmd_prev)
+        # print("lp_beta_prev:", lp_beta_prev)
         log_target_prev = lmd_prev + lp_beta_prev
-        print("lmd_prop:", lmd_prop)
-        print("lp_beta_prop:", lp_beta_prop)
+        # print("lmd_prop:", lmd_prop)
+        # print("lp_beta_prop:", lp_beta_prop)
         log_target_prop = lmd_prop + lp_beta_prop
 
         acc_ratio = np.exp(log_target_prop - log_target_prev)
-        print("beta acc_ratio:", acc_ratio)
+        # print("beta acc_ratio:", acc_ratio)
 
         if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
             self.betas.append(beta_prop)
@@ -442,6 +443,8 @@ class HMRFGMM:
         return gibbs_energy
 
     def mcr(self, true_labels):
+        """Compares classified with true labels for each iteration step (for synthetic data)
+        to obtain a measure of mismatch/convergence."""
         mcr_vals = []
         n = len(true_labels)  # TODO: 2d and 3d implementation for MCR
         for label in self.labels:
@@ -449,16 +452,81 @@ class HMRFGMM:
             mcr_vals.append(missclassified / n)
         return mcr_vals
 
+    def get_std_from_cov(self, f, l):
+        """Extracts standard deviation from covariance matrix for feature f and label l."""
+        stds = []
+        for i in range(len(self.covs)):
+            stds.append(np.sqrt(np.diag(self.covs[i][l])[f]))
+        return stds
 
+    def get_corr_coef_from_cov(self, l):
+        """Extracts correlation coefficient from covariance matrix for label l."""
+        corr_coefs = []
+        for i in range(len(self.covs)):
+            corr_coef = self.covs[i][l, 0, 1]
+            for f in [0, 1]:
+                corr_coef = corr_coef / np.sqrt(np.diag(self.covs[i][l])[f])
+            corr_coefs.append(corr_coef)
+        return corr_coefs
 
+    def diagnostics_plot(self, true_labels=None):
+        """
+        Diagnostic plots for analyzing convergence.
+        :param true_labels: If given calculates and plots MCR
+        :return: Fancy figures
+        """
+        fig = plt.figure(figsize=(15, 15))
+        if true_labels is not None:
+            gs = gridspec.GridSpec(5, 2)
+        else:
+            gs = gridspec.GridSpec(4, 2)
 
+        # plot beta
+        ax2 = plt.subplot(gs[0, :-1])
+        ax2.set_title("beta")
+        ax2.plot(self.betas, label="beta", color="black")
 
-    def plot_mu(self, feature):
+        # plot corr coef
+        ax3 = plt.subplot(gs[0, -1])
+        ax3.set_title("corr coef")
         for l in range(self.n_labels):
-            ax = plt.plot(np.array(self.mus)[:, :, feature][:, l], label=str(l))
-        return ax
+            ax3.plot(self.get_corr_coef_from_cov(l), label="Label " + str(l))
+        ax3.legend()
 
+        # plot labels
+        ax1 = plt.subplot(gs[1, :])
+        ax1.imshow(np.array(self.labels), cmap="YlOrRd")
 
+        # plot mus
+        ax4 = plt.subplot(gs[2, :-1])
+        ax4.set_title("mu feature 0")
+        for l in range(self.n_labels):
+            ax4.plot(np.array(self.mus)[:, :, 0][:, l], label="Label " + str(l))
+        ax4.legend()
+
+        ax5 = plt.subplot(gs[2, -1])
+        ax5.set_title("mu feature 0")
+        for l in range(self.n_labels):
+            ax5.plot(np.array(self.mus)[:, :, 1][:, l], label="Label " + str(l))
+        ax5.legend()
+
+        # plot
+        ax6 = plt.subplot(gs[3, :-1])
+        ax6.set_title("stdev feature 0")
+        for l in range(self.n_labels):
+            ax6.plot(self.get_std_from_cov(0, l), label="Label " + str(l))
+        ax6.legend()
+
+        ax7 = plt.subplot(gs[3, -1])
+        ax7.set_title("stdev feature 1")
+        for l in range(self.n_labels):
+            ax7.plot(self.get_std_from_cov(1, l), label="Label " + str(l))
+        ax7.legend()
+
+        if true_labels is not None:
+            ax8 = plt.subplot(gs[4, :])
+            ax8.set_title("mcr")
+            ax8.plot(self.mcr(true_labels), color="black")
 
 
 def _cov_proposal_rotation_matrix(x, y, theta):

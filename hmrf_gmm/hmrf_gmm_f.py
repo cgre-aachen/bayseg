@@ -5,19 +5,18 @@ Approach based on Wang et al. 2016 paper
 @author: Alexander Schaaf, Hui Wang
 """
 
-import sys
 import numpy as np
 from sklearn import mixture
-from scipy.stats import multivariate_normal, norm, lognorm
+from scipy.stats import multivariate_normal, norm
 from copy import copy
 from itertools import combinations
-import tqdm
+import tqdm  # progress bar
 import matplotlib.pyplot as plt
-from matplotlib import gridspec
+from matplotlib import gridspec  # plot arrangements
 
 
 class HMRFGMM:
-    def __init__(self, coordinates, observations, n_labels=2, beta_init=1):
+    def __init__(self, coordinates, observations, n_labels, beta_init=1):
         """
 
         :param coordinates:
@@ -31,7 +30,7 @@ class HMRFGMM:
         self.dim = np.shape(coordinates)[1]
         # store observations
         self.obs = observations
-        self.n_obs = np.shape(observations)[1]
+        self.n_feat = np.shape(observations)[1]
         # store number of labels
         self.n_labels = n_labels
         # ************************************************************************************************
@@ -45,13 +44,13 @@ class HMRFGMM:
         self.neighborhood = define_neighborhood_system(coordinates)
         # ************************************************************************************************
         # INIT GAUSSIAN MIXTURE MODEL
-        self.gmm = mixture.GaussianMixture(n_components=self.n_obs, covariance_type="full")
+        self.gmm = mixture.GaussianMixture(n_components=self.n_labels, covariance_type="full")
         # fit it to features
         self.gmm.fit(self.obs)
         # do initial prediction based on fit and observations, store as first entry in labels
         # ************************************************************************************************
         # INIT LABELS based on GMM
-        self.labels =[self.gmm.predict(self.obs)]
+        self.labels = [self.gmm.predict(self.obs)]
         # ************************************************************************************************
         # INIT MU (mean from initial GMM)
         self.mus = [self.gmm.means_]
@@ -71,22 +70,22 @@ class HMRFGMM:
 
         # TODO: Clean up prior initialization
         # mu
-        prior_mu_means = [self.mus[0][l] for l in range(self.n_labels)]
-        prior_mu_stds = [np.eye(self.n_obs)*100 for l in range(self.n_labels)]
-        self.priors_mu = [multivariate_normal(prior_mu_means[l], prior_mu_stds[l]) for l in range(self.n_labels)]
+        prior_mu_means = [self.mus[0][f] for f in range(self.n_labels)]
+        prior_mu_stds = [np.eye(self.n_feat) * 100 for f in range(self.n_labels)]
+        self.priors_mu = [multivariate_normal(prior_mu_means[f], prior_mu_stds[f]) for f in range(self.n_labels)]
 
         # cov
         # generate b_sigma
-        self.b_sigma = np.zeros((self.n_labels, self.n_obs))
+        self.b_sigma = np.zeros((self.n_labels, self.n_feat))
         for l in range(self.n_labels):
             self.b_sigma[l, :] = np.log(np.sqrt(np.diag(self.gmm.covariances_[l, :, :])))
         # generate kesi
-        self.kesi = np.ones((self.n_labels, self.n_obs)) * 100
+        self.kesi = np.ones((self.n_labels, self.n_feat)) * 100
         # generate nu
-        self.nu = self.n_obs + 1
+        self.nu = self.n_feat + 1
         # ************************************************************************************************
 
-    def fit(self, n, beta_jump_length=1, verbose=False):
+    def fit(self, n, beta_jump_length=10,  mu_jump_length=0.0005, cov_jump_length=0.00005, theta_jump_length=0.0005, t=1., verbose=False):
         """
 
         :param n:
@@ -94,10 +93,9 @@ class HMRFGMM:
         :return:
         """
         for g in tqdm.trange(n):
-            self.gibbs_sample()
+            self.gibbs_sample(t, beta_jump_length, mu_jump_length, cov_jump_length, theta_jump_length, verbose)
 
-    def gibbs_sample(self, verbose=False, t=1., beta_jump_length=1, mu_jump_length=0.0005,
-                     cov_jump_length=0.00005, theta_jump_length=0.0005):
+    def gibbs_sample(self, t, beta_jump_length, mu_jump_length, cov_jump_length, theta_jump_length, verbose):
         """
 
         :param i:
@@ -114,28 +112,28 @@ class HMRFGMM:
         # CALCULATE TOTAL ENERGY
         # 1 - calculate energy likelihood for each element and label
         energy_like = self.calc_energy_like(self.mus[i], self.covs[i], self.labels[i])
-        if verbose:
+        if verbose == "energy":
             print("likelihood energy:", energy_like)
         # 2 - calculate gibbs/mrf energy
         gibbs_energy = self.calc_gibbs_energy(self.labels[i], self.betas[i])
-        if verbose:
+        if verbose == "energy":
             print("gibbs energy:", gibbs_energy)
         # 3 - self energy
         self_energy = np.zeros(self.n_labels)
         # 5 - calculate total energy
         total_energy = energy_like + self_energy + gibbs_energy
-        if verbose:
+        if verbose == "energy":
             print("total_energy:", total_energy)
 
         # ************************************************************************************************
         # CALCULATE PROBABILITY OF LABELS
         labels_prob = calc_labels_prob(total_energy, t)
-        if verbose:
+        if verbose == "energy":
             print("Labels probability:", labels_prob)
 
         # ************************************************************************************************
         # DRAW NEW LABELS FOR EVERY ELEMENT
-        new_labels = np.array([np.random.choice(list(range(self.n_obs)), p=labels_prob[x, :]) for x in range(len(self.coords))])
+        new_labels = np.array([np.random.choice(list(range(self.n_labels)), p=labels_prob[x, :]) for x in range(len(self.coords))])
         self.labels.append(new_labels)
         # ************************************************************************************************
         # RECALCULATE Gibbs energy with new labels
@@ -154,7 +152,8 @@ class HMRFGMM:
         beta_prop = self.propose_beta(self.betas[-1], beta_jump_length)
         # print("beta prop:", beta_prop)
         mu_prop = self.propose_mu(self.mus[-1], mu_jump_length)
-        cov_prop = self.propose_cov(self.covs[-1], cov_jump_length, theta_jump_length)
+        cov_prop = propose_cov(self.covs[-1], self.n_feat, self.n_labels, cov_jump_length, theta_jump_length)
+        # print("cov_prop:", cov_prop)
 
         # ************************************************************************************************
         # COMPARE THE SHIT FOR EACH LABEL FOR EACH SHIT
@@ -183,6 +182,8 @@ class HMRFGMM:
 
             # acceptance ratio
             acc_ratio = np.exp(log_target_prop - log_target_prev)
+            if verbose:
+                print("MU acceptance ratio:", acc_ratio)
 
             if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
                 # replace old with new if accepted
@@ -196,13 +197,19 @@ class HMRFGMM:
             cov_temp = copy(cov_next)
             cov_temp[l, :, :] = cov_prop[l, :, :]
 
+            # print("cov diff:", cov_next[l, :, :]-cov_temp[l, :, :])
+
             # logprob prior density for covariance
             lp_cov_prev = self.log_prior_density_cov(cov_next, l)
+            # print("lp_cov_prev:", lp_cov_prev)
             lp_cov_prop = self.log_prior_density_cov(cov_temp, l)
+            # print("lp_cov_prop:", lp_cov_prop)
 
             lmd_prev = self.calc_sum_log_mixture_density(comp_coef, mu_next, cov_next)
+            # print("lmd_prev:", lmd_prev)
             # calculate log mixture density for proposed mu and cov
             lmd_prop = self.calc_sum_log_mixture_density(comp_coef, mu_next, cov_temp)
+            # print("lmd_prop:", lmd_prop)
 
             # combine
             log_target_prev = lmd_prev + lp_cov_prev
@@ -210,8 +217,12 @@ class HMRFGMM:
 
             # acceptance ratio
             acc_ratio = np.exp(log_target_prop - log_target_prev)
-
-            if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
+            if verbose:
+                print("COV acceptance ratio:", acc_ratio)
+            # print("cov acc ratio", acc_ratio)
+            random = np.random.uniform()
+            # print("cov rand acc", random)
+            if (acc_ratio > 1) or (random < acc_ratio):
                 # replace old with new if accepted
                 cov_next[l, :] = cov_prop[l, :]
 
@@ -240,6 +251,9 @@ class HMRFGMM:
 
         acc_ratio = np.exp(log_target_prop - log_target_prev)
         # print("beta acc_ratio:", acc_ratio)
+
+        if verbose:
+            print("BETA acceptance ratio:", acc_ratio)
 
         if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
             self.betas.append(beta_prop)
@@ -272,7 +286,7 @@ class HMRFGMM:
         """
         lam = np.sqrt(np.diag(cov[label, :, :]))
         r = np.diag(1./lam) @ cov[label, :, :] @ np.diag(1./lam)
-        logp_r = -0.5 * (self.nu + self.n_obs + 1) * np.log(np.linalg.det(r)) - self.nu/2. * np.sum(np.log(np.diag(np.linalg.inv(r))))
+        logp_r = -0.5 * (self.nu + self.n_feat + 1) * np.log(np.linalg.det(r)) - self.nu / 2. * np.sum(np.log(np.diag(np.linalg.inv(r))))
         # yeah obviously - does anyone in the world understand this?!
         logp_lam = np.sum(np.log(multivariate_normal(mean=self.b_sigma[label, :], cov=self.kesi[label, :]).pdf(np.log(lam.T))))
         return logp_r + logp_lam
@@ -308,61 +322,13 @@ class HMRFGMM:
         :return:
         """
         # create proposal covariance depending on observation dimensionality
-        sigma_prop = np.eye(self.n_obs) * mu_jump_length
+        sigma_prop = np.eye(self.n_feat) * mu_jump_length
         # prepare matrix
-        mu_prop = np.ones((self.n_obs, self.n_labels))
+        mu_prop = np.ones((self.n_labels, self.n_feat))
         # loop over labels
         for l in range(self.n_labels):
-            mu_prop[l, :] = multivariate_normal(mean=mu_prev[l, :], cov=np.eye(self.n_obs) * mu_jump_length).rvs()
+            mu_prop[l, :] = multivariate_normal(mean=mu_prev[l, :], cov=np.eye(self.n_feat) * mu_jump_length).rvs()
         return mu_prop
-
-    def propose_cov(self, cov_prev, cov_jump_length, theta_jump_length):
-        """
-
-        :param cov_prev:
-        :param cov_jump_length:
-        :param theta_jump_length:
-        :return:
-        """
-        # do svd on the previous covariance matrix
-        comb = list(combinations(range(self.n_obs), 2))
-        n_axis = len(comb)
-        theta_jump = multivariate_normal(mean=[0 for i in range(n_axis)], cov=np.ones(n_axis) * theta_jump_length).rvs()
-        cov_prop = np.zeros_like(cov_prev)
-
-        # print("cov_prev:", cov_prev)
-
-        for l in range(self.n_labels):
-
-            v_l, d_l, v_l = np.linalg.svd(cov_prev[l, :, :])
-            # print("v_l:", v_l)
-            # generate d jump
-            log_d_jump = multivariate_normal(mean=[0 for i in range(self.n_obs)], cov=np.eye(self.n_obs) * cov_jump_length).rvs()
-            # sum towards d proposal
-            # if l == 0:
-            d_prop = np.diag(np.exp(np.log(d_l) + log_d_jump))
-            # else:
-            #    d_prop = np.vstack((d_prop, np.exp(np.log(d_l) + np.log(d_jump))))
-
-            # now tackle generating v jump
-            a = np.eye(self.n_obs)
-            # print("a init:", a)
-            # print("shape a:", np.shape(a))
-            for j in range(n_axis):
-                rotation_matrix = _cov_proposal_rotation_matrix(v_l[:, comb[j][0]], v_l[:, comb[j][1]], theta_jump)
-                # print("rot mat:", rotation_matrix)
-                # print("rot mat:", rotation_matrix)
-                a = np.matmul(rotation_matrix, a)
-                # print("a:", a)
-            # print("v_l:", v_l)
-            v_prop = np.matmul(a, v_l)
-            # print("d_prop:", d_prop)
-            # print("v_prop:", v_prop)
-            # TODO: Is this proposal covariance slicing correct?
-            cov_prop[l, :, :] = np.matmul(np.matmul(v_prop, d_prop), v_prop)
-            # print("cov_prop:", cov_prop)
-
-        return cov_prop
 
     def calc_sum_log_mixture_density(self, comp_coef, mu, cov):
         """
@@ -529,6 +495,55 @@ class HMRFGMM:
             ax8.plot(self.mcr(true_labels), color="black")
 
 
+def propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length):
+    """
+
+    :param cov_prev:
+    :param cov_jump_length:
+    :param theta_jump_length:
+    :return:
+    """
+    # do svd on the previous covariance matrix
+    comb = list(combinations(range(n_feat), 2))
+    n_comb = len(comb)
+    theta_jump = multivariate_normal(mean=[0 for i in range(n_comb)], cov=np.ones(n_comb) * theta_jump_length).rvs()
+    cov_prop = np.zeros_like(cov_prev)
+
+    # print("cov_prev:", cov_prev)
+
+    for l in range(n_labels):
+
+        v_l, d_l, v_l_t = np.linalg.svd(cov_prev[l, :, :])
+        # print("v_l:", v_l)
+        # generate d jump
+        log_d_jump = multivariate_normal(mean=[0 for i in range(n_feat)], cov=np.eye(n_feat) * cov_jump_length).rvs()
+        # sum towards d proposal
+        # if l == 0:
+        d_prop = np.diag(np.exp(np.log(d_l) + log_d_jump))
+        # else:
+        #    d_prop = np.vstack((d_prop, np.exp(np.log(d_l) + np.log(d_jump))))
+
+        # now tackle generating v jump
+        a = np.eye(n_feat)
+        # print("a init:", a)
+        # print("shape a:", np.shape(a))
+        for j in range(n_comb):
+            rotation_matrix = _cov_proposal_rotation_matrix(v_l[:, comb[j][0]], v_l[:, comb[j][1]], theta_jump[j])
+            # print("rot mat:", rotation_matrix)
+            # print("rot mat:", rotation_matrix)
+            a = rotation_matrix @ a
+            # print("a:", a)
+        # print("v_l:", np.shape(v_l))
+        v_prop = a @ v_l  # np.matmul(a, v_l)
+        # print("d_prop:", d_prop)
+        # print("v_prop:", np.shape(v_prop))
+        # TODO: Is this proposal covariance slicing correct?
+        cov_prop[l, :, :] = v_prop @ d_prop @ v_prop.T  # np.matmul(np.matmul(v_prop, d_prop), v_prop.T)
+        # print("cov_prop:", cov_prop)
+
+    return cov_prop
+
+
 def _cov_proposal_rotation_matrix(x, y, theta):
     """
 
@@ -540,7 +555,7 @@ def _cov_proposal_rotation_matrix(x, y, theta):
     y = np.array([y]).T
 
     uu = x / np.linalg.norm(x)
-    vv = y - np.matmul(uu.T, y) * uu
+    vv = y - uu.T @ y * uu
     vv = vv / np.linalg.norm(vv)
     # what is happening
 
@@ -572,6 +587,7 @@ def define_neighborhood_system(coordinates):
                 neighbors[i] = [i - 1]
             else:
                 neighbors[i] = [i - 1, i + 1]
+
 
     elif dim == 2:
         pass

@@ -1,4 +1,6 @@
-# README #
+# pyBaySEG
+
+[![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)]()
 
 This README would normally document whatever steps are necessary to get your application up and running. But I do not have time to edit this doc :(
 

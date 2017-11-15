@@ -85,7 +85,7 @@ class HMRFGMM:
         self.nu = self.n_feat + 1
         # ************************************************************************************************
 
-    def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_jump_length=0.00005, theta_jump_length=0.0005, t=1., verbose=False):
+    def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005, theta_jump_length=0.0005, t=1., verbose=False):
         """
 
         :param n:
@@ -93,16 +93,16 @@ class HMRFGMM:
         :return:
         """
         for g in tqdm.trange(n):
-            self.gibbs_sample(t, beta_jump_length, mu_jump_length, cov_jump_length, theta_jump_length, verbose)
+            self.gibbs_sample(t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length, verbose)
 
-    def gibbs_sample(self, t, beta_jump_length, mu_jump_length, cov_jump_length, theta_jump_length, verbose):
+    def gibbs_sample(self, t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length, verbose):
         """
         Gibbs sampler. This is the main function of the algorithm and needs an in-depth description
 
         :param t: Hyperparameter
         :param beta_jump_length: Hyperparameter
         :param mu_jump_length: Hyperparameter
-        :param cov_jump_length: Hyperparameter
+        :param cov_volume_jump_length: Hyperparameter
         :param theta_jump_length: Hyperparameter
         :param verbose: bool or str specifying verbosity of the function
 
@@ -156,7 +156,7 @@ class HMRFGMM:
         # print("beta prop:", beta_prop)
         mu_prop = self.propose_mu(self.mus[-1], mu_jump_length)
         # print("mu prop:", mu_prop)
-        cov_prop = propose_cov(self.covs[-1], self.n_feat, self.n_labels, cov_jump_length, theta_jump_length)
+        cov_prop = propose_cov(self.covs[-1], self.n_feat, self.n_labels, cov_volume_jump_length, theta_jump_length)
         # print("cov_prop:", cov_prop)
 
         # ************************************************************************************************
@@ -332,7 +332,7 @@ class HMRFGMM:
             mu_prop[l, :] = multivariate_normal(mean=mu_prev[l, :], cov=np.eye(self.n_feat) * mu_jump_length).rvs()
         return mu_prop
 
-    def calc_sum_log_mixture_density(self, comp_coef, mu, cov):
+    def calc_sum_log_mixture_density_loop(self, comp_coef, mu, cov):
         """
         Calculate sum of log mixture density with each observation at every element.
         :param comp_coef: Component coefficient.
@@ -358,6 +358,26 @@ class HMRFGMM:
         # TODO: 3-dimensional log mixture density
 
         return lmd
+
+    def calc_sum_log_mixture_density(self, comp_coef, mu, cov):
+        """
+        Calculate sum of log mixture density with each observation at every element.
+        :param comp_coef: Component coefficient.
+        :param mu: Mean matrix
+        :param cov: Covariance matrix
+        :return: summed log mixture density of the system
+        """
+        lmd = np.zeros((500, 3))
+
+        for l in range(self.n_labels):
+            lmd[:, l] = multivariate_normal(mean=mu[l, :], cov=cov[l, :, :]).pdf(self.obs)
+            # print(np.shape(lmd[:,l]))
+            # multi = comp_coef[:,l] * draw
+            # lmd[:,l] = np.log(multi)
+        lmd = np.sum(lmd, axis=1)
+        lmd = np.log(lmd)
+
+        return np.sum(lmd
 
     def calc_energy_like(self, mu, cov):
         """
@@ -593,7 +613,6 @@ def define_neighborhood_system(coordinates):
                 neighbors[i] = [i - 1]
             else:
                 neighbors[i] = [i - 1, i + 1]
-
 
     elif dim == 2:
         pass

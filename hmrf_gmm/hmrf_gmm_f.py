@@ -13,6 +13,7 @@ from itertools import combinations
 import tqdm  # progress bar
 import matplotlib.pyplot as plt
 from matplotlib import gridspec  # plot arrangements
+plt.style.use('bmh')
 
 
 class HMRFGMM:
@@ -85,13 +86,9 @@ class HMRFGMM:
         self.nu = self.n_feat + 1
         # ************************************************************************************************
 
-    def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005, theta_jump_length=0.0005, t=1., verbose=False):
-        """
+    def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005,
+            theta_jump_length=0.0005, t=1., verbose=False):
 
-        :param n:
-        :param verbose:
-        :return:
-        """
         for g in tqdm.trange(n):
             self.gibbs_sample(t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length, verbose)
 
@@ -467,22 +464,32 @@ class HMRFGMM:
         Plot the mu and stdev for each label for each feature.
         :return: Fancy figures
         """
-        fig, ax = plt.subplots(nrows=self.n_feat, ncols=2, figsize=(15, 5*self.n_feat))
+        fig, ax = plt.subplots(nrows=self.n_feat, ncols=2, figsize=(15, 9*self.n_feat))
+
+        ax[0, 0].set_title(r"$\mu$")
+        ax[0, 1].set_title(r"$\sigma$")
+        # ax[0, 0].legend()
 
         for f in range(self.n_feat):
+
             # plot mus
-            ax[f, 0].set_title("MU, feature "+str(f))
+            # ax[f, 0].set_title("MU, feature "+str(f))
             for l in range(self.n_labels):
                 ax[f, 0].plot(np.array(self.mus)[:, :, f][:, l], label="Label " + str(l))
 
-            ax[f, 0].legend()
+            # ax[f, 0].legend()
+            ax[f, 0].set_ylabel("Feature " + str(f))
 
             # plot covs
-            ax[f, 1].set_title("STDEV, feature " + str(f))
+            # ax[f, 1].set_title("STDEV, feature " + str(f))
             for l in range(self.n_labels):
                 ax[f, 1].plot(self.get_std_from_cov(f, l), label="Label " + str(l))
 
-            ax[f, 1].legend()
+        ax[f, 0].set_xlabel("Iterations")
+        ax[f, 1].set_xlabel("Iterations")
+        ax[f, 1].legend(loc=9, bbox_to_anchor=(0.5, -0.25), ncol=3)
+
+        plt.show()
 
     def diagnostics_plot(self, true_labels=None, cmap="viridis"):
         """
@@ -498,24 +505,32 @@ class HMRFGMM:
 
         # plot beta
         ax2 = plt.subplot(gs[0, :-1])
-        ax2.set_title("beta")
-        ax2.plot(self.betas, label="beta", color="black")
+        ax2.set_title(r"$\beta$")
+        ax2.plot(self.betas, label="beta", color="black", )
+        ax2.set_xlabel("Iterations")
 
         # plot corr coef
         ax3 = plt.subplot(gs[0, -1])
-        ax3.set_title("corr coef")
+        ax3.set_title("Correlation coefficient")
         for l in range(self.n_labels):
             ax3.plot(self.get_corr_coef_from_cov(l), label="Label " + str(l))
         ax3.legend()
+        ax3.set_xlabel("Iterations")
 
         # plot labels
         ax1 = plt.subplot(gs[1, :])
-        ax1.imshow(np.array(self.labels), cmap=cmap)
+        ax1.imshow(np.array(self.labels), cmap=cmap, aspect='auto', interpolation='nearest')
+        ax1.set_ylabel("Iterations")
+        ax1.set_xlabel("x")
+        ax1.set_title("Labels")
+        ax1.grid(False)  # disable grid
 
         if true_labels is not None:
             ax8 = plt.subplot(gs[2, :])
             ax8.set_title("mcr")
             ax8.plot(self.mcr(true_labels), color="black")
+
+        plt.show()
 
 
 def propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length):

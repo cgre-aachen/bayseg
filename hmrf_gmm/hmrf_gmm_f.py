@@ -367,7 +367,7 @@ class HMRFGMM:
         :param cov: Covariance matrix
         :return: summed log mixture density of the system
         """
-        lmd = np.zeros((500, 3))
+        lmd = np.zeros((len(self.coords), self.n_labels))
 
         for l in range(self.n_labels):
             draw = multivariate_normal(mean=mu[l, :], cov=cov[l, :, :]).pdf(self.obs)

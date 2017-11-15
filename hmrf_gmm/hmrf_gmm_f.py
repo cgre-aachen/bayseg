@@ -111,7 +111,6 @@ class HMRFGMM:
         """
         # TODO: In-depth description of the gibbs sampling function
 
-        i = -1
         # ************************************************
         # CALCULATE TOTAL ENERGY
         # 1 - calculate energy likelihood for each element and label
@@ -141,7 +140,7 @@ class HMRFGMM:
         self.labels.append(new_labels)
         # ************************************************************************************************
         # RECALCULATE Gibbs energy with new labels
-        gibbs_energy = self.calc_gibbs_energy(new_labels, self.betas[i])
+        gibbs_energy = self.calc_gibbs_energy(new_labels, self.betas[-1])
         # calculate energy for component coefficient
         energy_for_comp_coef = gibbs_energy + self_energy
 
@@ -156,6 +155,7 @@ class HMRFGMM:
         beta_prop = self.propose_beta(self.betas[-1], beta_jump_length)
         # print("beta prop:", beta_prop)
         mu_prop = self.propose_mu(self.mus[-1], mu_jump_length)
+        # print("mu prop:", mu_prop)
         cov_prop = propose_cov(self.covs[-1], self.n_feat, self.n_labels, cov_jump_length, theta_jump_length)
         # print("cov_prop:", cov_prop)
 
@@ -442,17 +442,39 @@ class HMRFGMM:
             corr_coefs.append(corr_coef)
         return corr_coefs
 
-    def diagnostics_plot(self, true_labels=None):
+    def plot_mu_stdev(self):
         """
-        Diagnostic plots for analyzing convergence.
+        Plot the mu and stdev for each label for each feature.
+        :return: Fancy figures
+        """
+        fig, ax = plt.subplots(nrows=self.n_feat, ncols=2, figsize=(15, 5*self.n_feat))
+
+        for f in range(self.n_feat):
+            # plot mus
+            ax[f, 0].set_title("MU, feature "+str(f))
+            for l in range(self.n_labels):
+                ax[f, 0].plot(np.array(self.mus)[:, :, f][:, l], label="Label " + str(l))
+
+            ax[f, 0].legend()
+
+            # plot covs
+            ax[f, 1].set_title("STDEV, feature " + str(f))
+            for l in range(self.n_labels):
+                ax[f, 1].plot(self.get_std_from_cov(f, l), label="Label " + str(l))
+
+            ax[f, 1].legend()
+
+    def diagnostics_plot(self, true_labels=None, cmap="viridis"):
+        """
+        Diagnostic plots for analyzing convergence: beta trace, correlation coefficient trace, labels trace and MCR.
         :param true_labels: If given calculates and plots MCR
         :return: Fancy figures
         """
-        fig = plt.figure(figsize=(15, 15))
+        fig = plt.figure(figsize=(15, 10))
         if true_labels is not None:
-            gs = gridspec.GridSpec(5, 2)
+            gs = gridspec.GridSpec(3, 2)
         else:
-            gs = gridspec.GridSpec(4, 2)
+            gs = gridspec.GridSpec(2, 2)
 
         # plot beta
         ax2 = plt.subplot(gs[0, :-1])
@@ -468,36 +490,10 @@ class HMRFGMM:
 
         # plot labels
         ax1 = plt.subplot(gs[1, :])
-        ax1.imshow(np.array(self.labels), cmap="YlOrRd")
-
-        # plot mus
-        ax4 = plt.subplot(gs[2, :-1])
-        ax4.set_title("mu feature 0")
-        for l in range(self.n_labels):
-            ax4.plot(np.array(self.mus)[:, :, 0][:, l], label="Label " + str(l))
-        ax4.legend()
-
-        ax5 = plt.subplot(gs[2, -1])
-        ax5.set_title("mu feature 0")
-        for l in range(self.n_labels):
-            ax5.plot(np.array(self.mus)[:, :, 1][:, l], label="Label " + str(l))
-        ax5.legend()
-
-        # plot
-        ax6 = plt.subplot(gs[3, :-1])
-        ax6.set_title("stdev feature 0")
-        for l in range(self.n_labels):
-            ax6.plot(self.get_std_from_cov(0, l), label="Label " + str(l))
-        ax6.legend()
-
-        ax7 = plt.subplot(gs[3, -1])
-        ax7.set_title("stdev feature 1")
-        for l in range(self.n_labels):
-            ax7.plot(self.get_std_from_cov(1, l), label="Label " + str(l))
-        ax7.legend()
+        ax1.imshow(np.array(self.labels), cmap=cmap)
 
         if true_labels is not None:
-            ax8 = plt.subplot(gs[4, :])
+            ax8 = plt.subplot(gs[2, :])
             ax8.set_title("mcr")
             ax8.plot(self.mcr(true_labels), color="black")
 

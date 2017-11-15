@@ -19,12 +19,12 @@ class HMRFGMM:
     def __init__(self, coordinates, observations, n_labels, beta_init=1):
         """
 
-        :param coordinates:
-        :param observations:
-        :param n_labels:
-        :param beta_init:
+        :param coordinates: Physical coordinate system as numpy ndarray
+        :param observations: Observations collected at every coordinate (numpy ndarray)
+        :param n_labels: Number of labels to be used in the clustering.
+        :param beta_init: Initial beta value.
         """
-
+        # TODO: Main object description
         # store physical coordinates, set dimensionality
         self.coords = coordinates
         self.dim = np.shape(coordinates)[1]
@@ -85,7 +85,7 @@ class HMRFGMM:
         self.nu = self.n_feat + 1
         # ************************************************************************************************
 
-    def fit(self, n, beta_jump_length=10,  mu_jump_length=0.0005, cov_jump_length=0.00005, theta_jump_length=0.0005, t=1., verbose=False):
+    def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_jump_length=0.00005, theta_jump_length=0.0005, t=1., verbose=False):
         """
 
         :param n:
@@ -97,25 +97,29 @@ class HMRFGMM:
 
     def gibbs_sample(self, t, beta_jump_length, mu_jump_length, cov_jump_length, theta_jump_length, verbose):
         """
+        Gibbs sampler. This is the main function of the algorithm and needs an in-depth description
 
-        :param i:
-        :param verbose:
-        :param t:
-        :param beta_jump_length:
-        :param mu_jump_length:
-        :param cov_jump_length:
-        :param theta_jump_length:
-        :return:
+        :param t: Hyperparameter
+        :param beta_jump_length: Hyperparameter
+        :param mu_jump_length: Hyperparameter
+        :param cov_jump_length: Hyperparameter
+        :param theta_jump_length: Hyperparameter
+        :param verbose: bool or str specifying verbosity of the function
+
+        The function updates directly on the object variables and appends new draws of labels and
+        parameters to their respective storages.
         """
+        # TODO: In-depth description of the gibbs sampling function
+
         i = -1
         # ************************************************
         # CALCULATE TOTAL ENERGY
         # 1 - calculate energy likelihood for each element and label
-        energy_like = self.calc_energy_like(self.mus[i], self.covs[i], self.labels[i])
+        energy_like = self.calc_energy_like(self.mus[-1], self.covs[-1])
         if verbose == "energy":
             print("likelihood energy:", energy_like)
         # 2 - calculate gibbs/mrf energy
-        gibbs_energy = self.calc_gibbs_energy(self.labels[i], self.betas[i])
+        gibbs_energy = self.calc_gibbs_energy(self.labels[-1], self.betas[-1])
         if verbose == "energy":
             print("gibbs energy:", gibbs_energy)
         # 3 - self energy
@@ -271,29 +275,27 @@ class HMRFGMM:
 
     def log_prior_density_beta(self, beta):
         """
-
-        :param beta:
-        :return:
+        Calculates the log prior density of beta.
+        :param beta: Beta value (float)
+        :return: Log prior density of beta (float)
         """
         return np.log(self.prior_beta.pdf(beta))
 
-    def log_prior_density_cov(self, cov, label):
+    def log_prior_density_cov(self, cov, l):
         """
-
-        :param cov:
-        :param label:
-        :return:
+        Calculate the log prior density of the covariance matrix for a given label.
+        :param cov: Covariance matrix.
+        :param l: Label (int)
+        :return: Log prior density of covariance for label (float)
         """
-        lam = np.sqrt(np.diag(cov[label, :, :]))
-        r = np.diag(1./lam) @ cov[label, :, :] @ np.diag(1./lam)
+        lam = np.sqrt(np.diag(cov[l, :, :]))
+        r = np.diag(1./lam) @ cov[l, :, :] @ np.diag(1. / lam)
         logp_r = -0.5 * (self.nu + self.n_feat + 1) * np.log(np.linalg.det(r)) - self.nu / 2. * np.sum(np.log(np.diag(np.linalg.inv(r))))
-        # yeah obviously - does anyone in the world understand this?!
-        logp_lam = np.sum(np.log(multivariate_normal(mean=self.b_sigma[label, :], cov=self.kesi[label, :]).pdf(np.log(lam.T))))
+        logp_lam = np.sum(np.log(multivariate_normal(mean=self.b_sigma[l, :], cov=self.kesi[l, :]).pdf(np.log(lam.T))))
         return logp_r + logp_lam
 
     def calc_log_prior_density(self, mu, rv_mu):
         """
-
         :param mu:
         :param rv_mu:
         :return:
@@ -302,10 +304,10 @@ class HMRFGMM:
 
     def propose_beta(self, beta_prev, beta_jump_length):
         """
-
-        :param beta_prev:
-        :param beta_jump_length:
-        :return:
+        Proposes a perturbed beta based on a jump length hyperparameter.
+        :param beta_prev: Beta value to be perturbed.
+        :param beta_jump_length: Hyperparameter specifying the strength of the perturbation.
+        :return: Perturbed beta.
         """
         # create proposal covariance depending on physical dimensionality
         dim = [1, 4, 13]
@@ -316,10 +318,10 @@ class HMRFGMM:
 
     def propose_mu(self, mu_prev, mu_jump_length):
         """
-
-        :param mu_prev:
-        :param mu_jump_length:
-        :return:
+        Proposes a perturbed mu matrix using a jump length hyperparameter.
+        :param mu_prev: The mu matrix to be perturbed.
+        :param mu_jump_length: Hyperparameter specifying the strength of the perturbation.
+        :return: Perturbed mu matrix.
         """
         # create proposal covariance depending on observation dimensionality
         sigma_prop = np.eye(self.n_feat) * mu_jump_length
@@ -332,11 +334,11 @@ class HMRFGMM:
 
     def calc_sum_log_mixture_density(self, comp_coef, mu, cov):
         """
-        Calculate sum of log mixture density.
-        :param comp_coef:
-        :param mu:
-        :param cov:
-        :return: lmd
+        Calculate sum of log mixture density with each observation at every element.
+        :param comp_coef: Component coefficient.
+        :param mu: Mean matrix
+        :param cov: Covariance matrix
+        :return: summed log mixture density of the system
         """
         if self.dim == 1:
             lmd = 0.
@@ -357,12 +359,11 @@ class HMRFGMM:
 
         return lmd
 
-    def calc_energy_like(self, mu, cov, labels):
+    def calc_energy_like(self, mu, cov):
         """
-
-        :param mu:
-        :param cov:
-        :param labels:
+        Calculates the energy likelihood of the system.
+        :param mu: Mean values
+        :param cov: Covariance matrix
         :return:
         """
 
@@ -371,10 +372,7 @@ class HMRFGMM:
             for x in range(len(self.coords)):
                 for l in  range(self.n_labels):
                     energy_like_labels[x, l] = 0.5 * np.array([self.obs[x] - mu[l, :]]) @ np.linalg.inv(cov[l, :, :]) @ np.array([self.obs[x] - mu[l, :]]).T + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
-                #print(energy_like_labels[x])
-                    #energy_like_labels[x] = (0.5 * np.dot(np.dot((self.obs[x] - mu[l, :]), np.linalg.inv(cov[l, :, :])),
-                    #                                   (self.obs[x] - mu[l, :]).transpose()) + 0.5 * np.log(
-                    #    np.linalg.det(cov[l, :, :]))).flatten()
+
         else:
             pass
         # TODO: 2-dimensional calculation of energy likelihood labels
@@ -384,10 +382,10 @@ class HMRFGMM:
 
     def calc_gibbs_energy(self, labels, beta):
         """
-        Calculate Gibbs energy for each element.
-        :param labels:
-        :param beta:
-        :return:
+        Calculates Gibbs energy for each element using a penalty factor beta.
+        :param labels: Array of labels at each element.
+        :param beta: Energetic penalty parameter.
+        :return: Gibbs energy for each element.
         """
         if self.dim == 1:
             # create ndarray for gibbs energy depending on element structure and n_labels
@@ -419,14 +417,23 @@ class HMRFGMM:
         return mcr_vals
 
     def get_std_from_cov(self, f, l):
-        """Extracts standard deviation from covariance matrix for feature f and label l."""
+        """
+        Extracts standard deviation from covariance matrices for feature f and label l.
+        :param f: feature (int)
+        :param l: label (int)
+        :return standard deviation from all covariance matrices for label/feature combination
+        """
         stds = []
         for i in range(len(self.covs)):
             stds.append(np.sqrt(np.diag(self.covs[i][l])[f]))
         return stds
 
     def get_corr_coef_from_cov(self, l):
-        """Extracts correlation coefficient from covariance matrix for label l."""
+        """
+        Extracts correlation coefficient from covariance matrix for label l.
+        :param l: label (int)
+        :retur: correlation coefficients from all covariance matrices for given label.
+        """
         corr_coefs = []
         for i in range(len(self.covs)):
             corr_coef = self.covs[i][l, 0, 1]
@@ -497,20 +504,23 @@ class HMRFGMM:
 
 def propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length):
     """
-
-    :param cov_prev:
-    :param cov_jump_length:
-    :param theta_jump_length:
-    :return:
+    Proposes a perturbed n-dimensional covariance matrix based on an existing one and a
+    covariance jump length and theta jump length parameter.
+    :param cov_prev: Covariance matrix to be perturbed.
+    :param n_feat: Number of features represented by the covariance matrix.
+    :param n_labels: Number of labels represented by the covariance matrix.
+    :param cov_jump_length: Parameter which roughly determines the strength of the covariance perturbation
+    :param theta_jump_length: Parameter which roughly determines the strength of the covariance perturbation
+    :return: Perturbed covariance matrix.
     """
     # do svd on the previous covariance matrix
     comb = list(combinations(range(n_feat), 2))
     n_comb = len(comb)
     theta_jump = multivariate_normal(mean=[0 for i in range(n_comb)], cov=np.ones(n_comb) * theta_jump_length).rvs()
     cov_prop = np.zeros_like(cov_prev)
-
     # print("cov_prev:", cov_prev)
 
+    # loop over all labels (=layers of the covariance matrix)
     for l in range(n_labels):
 
         v_l, d_l, v_l_t = np.linalg.svd(cov_prev[l, :, :])
@@ -546,7 +556,7 @@ def propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length):
 
 def _cov_proposal_rotation_matrix(x, y, theta):
     """
-
+    Creates the rotation matrix needed for the covariance matrix proposal step.
     :param x, y: two base vectors defining a plane
     :param theta: rotation angle in this plane
     :return: rotation matrix for covariance proposal step

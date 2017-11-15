@@ -464,7 +464,7 @@ class HMRFGMM:
         Plot the mu and stdev for each label for each feature.
         :return: Fancy figures
         """
-        fig, ax = plt.subplots(nrows=self.n_feat, ncols=2, figsize=(15, 9*self.n_feat))
+        fig, ax = plt.subplots(nrows=self.n_feat, ncols=2, figsize=(15, 5*self.n_feat))
 
         ax[0, 0].set_title(r"$\mu$")
         ax[0, 1].set_title(r"$\sigma$")
@@ -497,10 +497,11 @@ class HMRFGMM:
         :param true_labels: If given calculates and plots MCR
         :return: Fancy figures
         """
-        fig = plt.figure(figsize=(15, 10))
         if true_labels is not None:
+            fig = plt.figure(figsize=(15, 15))
             gs = gridspec.GridSpec(3, 2)
         else:
+            fig = plt.figure(figsize=(15, 10))
             gs = gridspec.GridSpec(2, 2)
 
         # plot beta
@@ -527,8 +528,10 @@ class HMRFGMM:
 
         if true_labels is not None:
             ax8 = plt.subplot(gs[2, :])
-            ax8.set_title("mcr")
+
             ax8.plot(self.mcr(true_labels), color="black")
+            ax8.set_ylabel("MCR")
+            ax8.set_xlabel("Iterations")
 
         plt.show()
 

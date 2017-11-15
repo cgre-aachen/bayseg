@@ -14,4 +14,4 @@ clf = pickle.load(open("../data/example.p", "rb"))
 
 clf.diagnostics_plot()
 
-# clf.plot_mu_stdev()
+clf.plot_mu_stdev()

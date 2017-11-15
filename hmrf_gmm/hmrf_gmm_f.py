@@ -370,14 +370,14 @@ class HMRFGMM:
         lmd = np.zeros((500, 3))
 
         for l in range(self.n_labels):
-            lmd[:, l] = multivariate_normal(mean=mu[l, :], cov=cov[l, :, :]).pdf(self.obs)
+            draw = multivariate_normal(mean=mu[l, :], cov=cov[l, :, :]).pdf(self.obs)
             # print(np.shape(lmd[:,l]))
-            # multi = comp_coef[:,l] * draw
-            # lmd[:,l] = np.log(multi)
+            multi = comp_coef[:, l] * draw
+            lmd[:, l] = multi
         lmd = np.sum(lmd, axis=1)
         lmd = np.log(lmd)
 
-        return np.sum(lmd
+        return np.sum(lmd)
 
     def calc_energy_like(self, mu, cov):
         """

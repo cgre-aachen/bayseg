@@ -20,10 +20,10 @@ class BaySeg:
     def __init__(self, coordinates, observations, n_labels, beta_init=1):
         """
 
-        :param coordinates: Physical coordinate system as numpy ndarray
-        :param observations: Observations collected at every coordinate (numpy ndarray)
-        :param n_labels: Number of labels to be used in the clustering.
-        :param beta_init: Initial beta value.
+        :param coordinates: Physical coordinate system as numpy ndarray (n_coord, 1)
+        :param observations: Observations collected at every coordinate as a numpy ndarray (n_coord, n_feat)
+        :param n_labels: Number of labels to be used in the clustering (int)
+        :param beta_init: Initial beta value (float)
         """
         # TODO: Main object description
         # store physical coordinates, set dimensionality

@@ -13,13 +13,31 @@ Gaussian Mixture Models and Bayesian inference. The algorithm is based on the wo
 
 ### Installation
 
-#### Cloning the repository
+As the library is still in early development, the only way to install it is to clone this repository
+and import it manually to your code:
+
+Clone the repository:
 
     git clone https://github.com/cgre-aachen/bayseg.git
 
+Append the path:
+    
+    import sys
+    sys.path.append("path/to/cloned/repository/bayseg")
+    
+Import the module:
+
+    import bayseg
+
 ### Getting Started
 
-### Contact
+Instantiate the classifier with the physical coordinates vector, the feature vectors and the number of labels:
+
+    clf = bayseg.BaySeg(coordinates_vector, feature_vectors, n_labels)
+    
+Then use the _fit()_ method to classify the algorithm for your desired number of iterations:
+
+    clf.fit(n_iterations)
 
 ### References
 

@@ -1,31 +1,24 @@
-# pyBaySEG
+# BaySeg
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)]()
 
-This README would normally document whatever steps are necessary to get your application up and running. But I do not have time to edit this doc :(
+A Python library for unsupervised clustering of n-dimensional data based on a combination of Hidden Markov Random Fields,
+Gaussian Mixture Models and Bayesian inference. The algorithm is based on the work of
+ [Wang et al., 2017](https://link.springer.com/article/10.1007/s11004-016-9663-9). It currently supports 1-dimensional
+ physical space and is in an early development stage.
+ 
+![alt text](data/images/front_gif.gif)
 
-### What is this repository for? ###
+### Installation
 
-* Quick summary
-* Version
-* [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
+#### Cloning the repository
 
-### How do I get set up? ###
+    git clone https://github.com/cgre-aachen/bayseg.git
 
-* Summary of set up
-* Configuration
-* Dependencies
-* Database configuration
-* How to run tests
-* Deployment instructions
+### Getting Started
 
-### Contribution guidelines ###
+### Contact
 
-* Writing tests
-* Code review
-* Other guidelines
+### References
 
-### Who do I talk to? ###
-
-* Repo owner or admin
-* Other community or team contact
+* Wang, H., Wellmann, J. F., Li, Z., Wang, X., & Liang, R. Y. (2017). A Segmentation Approach for Stochastic Geological Modeling Using Hidden Markov Random Fields. Mathematical Geosciences, 49(2), 145-177.

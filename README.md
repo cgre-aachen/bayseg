@@ -9,6 +9,8 @@ Gaussian Mixture Models and Bayesian inference. The algorithm is based on the wo
  
 ![alt text](data/images/front_gif.gif)
 
+(Above well log data used from machine learning contest of [Hall, 2016](https://library.seg.org/doi/abs/10.1190/tle35100906.1))
+
 ### Installation
 
 #### Cloning the repository
@@ -22,3 +24,4 @@ Gaussian Mixture Models and Bayesian inference. The algorithm is based on the wo
 ### References
 
 * Wang, H., Wellmann, J. F., Li, Z., Wang, X., & Liang, R. Y. (2017). A Segmentation Approach for Stochastic Geological Modeling Using Hidden Markov Random Fields. Mathematical Geosciences, 49(2), 145-177.
+* Hall, B. (2016). Facies classification using machine learning. The Leading Edge, 35(10), 906-909.

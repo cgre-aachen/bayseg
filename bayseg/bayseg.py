@@ -17,7 +17,7 @@ plt.style.use('bmh')
 
 
 class BaySeg:
-    def __init__(self, coordinates, observations, n_labels, beta_init=1, bic=False):
+    def __init__(self, coordinates, observations, n_labels, beta_init=1, bic=False, d_factor=5):
         """
 
         :param coordinates: Physical coordinate system as numpy ndarray (n_coord, 1)
@@ -45,7 +45,7 @@ class BaySeg:
         self.neighborhood = define_neighborhood_system(coordinates)
         # ************************************************************************************************
         # INIT GAUSSIAN MIXTURE MODEL
-        self.n_labels, self.gmm = self.initialize_gmm(bic, n_labels)
+        self.n_labels, self.gmm = self.initialize_gmm(bic, n_labels, d_factor)
         # do initial prediction based on fit and observations, store as first entry in labels
         # ************************************************************************************************
         # INIT LABELS based on GMM
@@ -272,7 +272,8 @@ class BaySeg:
         else:
             self.betas.append(self.betas[-1])
 
-    def initialize_gmm(self, bic, n_labels):
+    def initialize_gmm(self, bic, n_labels, d_factor=5):
+
         """
         Initializes GMM using either a single n_labels, or does BIC analysis and choses best n_labels basedon
         feature space.
@@ -281,20 +282,37 @@ class BaySeg:
         """
         if bic:
             n_comp = np.arange(1, n_labels+1)
-
             # create array of GMMs in range of components/labels and fit to observations
             gmms = np.array([mixture.GaussianMixture(n_components=n, covariance_type="full").fit(self.obs) for n in n_comp])
             # calculate BIC for each GMM based on observartions
             bics = np.array([gmm.bic(self.obs) for gmm in gmms])
+            # take sequential difference
+            bic_diffs = np.ediff1d(bics)
+
             # find index of minimum BIC
-            bic_min = np.argmin(bics)
+            # bic_min = np.argmin(bics)
+            bic_diffs_min = np.argmin(np.abs(bic_diffs))
+
+            d = np.abs(bic_diffs[bic_diffs_min] * d_factor)
+            bic_min = np.where(np.abs(bic_diffs) < d)[0][0]
 
             # do a nice plot so the user knows intuitively whats happening
-            fig = plt.figure()
-            plt.plot(n_comp, bics, label="bic")
-            plt.plot(n_comp[bic_min], bics[bic_min], "ko")
-            plt.title("Bayesian Information Criterion")
-            plt.xlabel("Number of Labels")
+            fig, ax = plt.subplots(ncols=2)
+            ax[0].plot(n_comp, bics, label="bic")
+            ax[0].plot(n_comp[bic_min], bics[bic_min], "ko")
+            ax[0].set_title("Bayesian Information Criterion")
+            ax[0].set_xlabel("Number of Labels")
+            ax[0].axvline(n_comp[bic_min], color="black", linestyle="dashed", linewidth=0.75)
+
+            ax[1].plot(n_comp[:-1], bic_diffs, label="bic")
+            ax[1].axhline(-d, color="black", linestyle="dashed", linewidth=0.75)
+            ax[1].axhline(d, color="black", linestyle="dashed", linewidth=0.75)
+            ax[1].plot(n_comp[bic_min], bic_diffs[bic_min], "ko")
+
+            plt.show()
+            print("n_labels (bic): ", bic_min)
+
+            bic_min = int(input("n_labels:"))
 
             return n_comp[bic_min], gmms[bic_min]
         else:

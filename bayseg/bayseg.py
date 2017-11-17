@@ -17,13 +17,14 @@ plt.style.use('bmh')
 
 
 class BaySeg:
-    def __init__(self, coordinates, observations, n_labels, beta_init=1):
+    def __init__(self, coordinates, observations, n_labels, beta_init=1, bic=False):
         """
 
         :param coordinates: Physical coordinate system as numpy ndarray (n_coord, 1)
         :param observations: Observations collected at every coordinate as a numpy ndarray (n_coord, n_feat)
         :param n_labels: Number of labels to be used in the clustering (int)
         :param beta_init: Initial beta value (float)
+        :param bic: (bool) for using Bayesian Information Criterion (Schwarz, 1978) for determining n_labels
         """
         # TODO: Main object description
         # store physical coordinates, set dimensionality
@@ -32,8 +33,7 @@ class BaySeg:
         # store observations
         self.obs = observations
         self.n_feat = np.shape(observations)[1]
-        # store number of labels
-        self.n_labels = n_labels
+
         # ************************************************************************************************
         # INIT STORAGE ARRAYS
         self.betas = [beta_init]  # initial beta
@@ -45,9 +45,7 @@ class BaySeg:
         self.neighborhood = define_neighborhood_system(coordinates)
         # ************************************************************************************************
         # INIT GAUSSIAN MIXTURE MODEL
-        self.gmm = mixture.GaussianMixture(n_components=self.n_labels, covariance_type="full")
-        # fit it to features
-        self.gmm.fit(self.obs)
+        self.n_labels, self.gmm = self.initialize_gmm(bic, n_labels)
         # do initial prediction based on fit and observations, store as first entry in labels
         # ************************************************************************************************
         # INIT LABELS based on GMM
@@ -88,7 +86,17 @@ class BaySeg:
 
     def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005,
             theta_jump_length=0.0005, t=1., verbose=False):
+        """
 
+        :param n:
+        :param beta_jump_length:
+        :param mu_jump_length:
+        :param cov_volume_jump_length:
+        :param theta_jump_length:
+        :param t:
+        :param verbose:
+        :return:
+        """
         for g in tqdm.trange(n):
             self.gibbs_sample(t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length, verbose)
 
@@ -111,6 +119,7 @@ class BaySeg:
         # ************************************************
         # CALCULATE TOTAL ENERGY
         # 1 - calculate energy likelihood for each element and label
+        # way to avoid over-smoothing by the gibbs energy
         energy_like = self.calc_energy_like(self.mus[-1], self.covs[-1])
         if verbose == "energy":
             print("likelihood energy:", energy_like)
@@ -119,8 +128,9 @@ class BaySeg:
         if verbose == "energy":
             print("gibbs energy:", gibbs_energy)
         # 3 - self energy
-        self_energy = np.zeros(self.n_labels)
+        self_energy = np.zeros(self.n_labels)  # to fix specific labels to locations, theoretically
         # 5 - calculate total energy
+        # total energy vector 2d: n_elements * n_labels
         total_energy = energy_like + self_energy + gibbs_energy
         if verbose == "energy":
             print("total_energy:", total_energy)
@@ -149,6 +159,7 @@ class BaySeg:
         # ************************************************************************************************
         # PROPOSAL STEP
         # make proposals for beta, mu and cov
+        # beta depends on physical dimensions, for 1d its size 1
         beta_prop = self.propose_beta(self.betas[-1], beta_jump_length)
         # print("beta prop:", beta_prop)
         mu_prop = self.propose_mu(self.mus[-1], mu_jump_length)
@@ -261,6 +272,35 @@ class BaySeg:
         else:
             self.betas.append(self.betas[-1])
 
+    def initialize_gmm(self, bic, n_labels):
+        """
+        Initializes GMM using either a single n_labels, or does BIC analysis and choses best n_labels basedon
+        feature space.
+        :param bic: (bool) choice if BIC or not
+        :param n_labels: (int)
+        """
+        if bic:
+            n_comp = np.arange(1, n_labels+1)
+
+            # create array of GMMs in range of components/labels and fit to observations
+            gmms = np.array([mixture.GaussianMixture(n_components=n, covariance_type="full").fit(self.obs) for n in n_comp])
+            # calculate BIC for each GMM based on observartions
+            bics = np.array([gmm.bic(self.obs) for gmm in gmms])
+            # find index of minimum BIC
+            bic_min = np.argmin(bics)
+
+            # do a nice plot so the user knows intuitively whats happening
+            fig = plt.figure()
+            plt.plot(n_comp, bics, label="bic")
+            plt.plot(n_comp[bic_min], bics[bic_min], "ko")
+            plt.title("Bayesian Information Criterion")
+            plt.xlabel("Number of Labels")
+
+            return n_comp[bic_min], gmms[bic_min]
+        else:
+            # if no BIC, just simply use the provided n_labels
+            return n_labels, mixture.GaussianMixture(n_components=n_labels, covariance_type="full").fit(self.obs)
+
     def log_prior_density_mu(self, mu, label):
         """
 
@@ -291,14 +331,6 @@ class BaySeg:
         logp_lam = np.sum(np.log(multivariate_normal(mean=self.b_sigma[l, :], cov=self.kesi[l, :]).pdf(np.log(lam.T))))
         return logp_r + logp_lam
 
-    def calc_log_prior_density(self, mu, rv_mu):
-        """
-        :param mu:
-        :param rv_mu:
-        :return:
-        """
-        return np.log(rv_mu.pdf(mu))
-
     def propose_beta(self, beta_prev, beta_jump_length):
         """
         Proposes a perturbed beta based on a jump length hyperparameter.
@@ -328,33 +360,6 @@ class BaySeg:
         for l in range(self.n_labels):
             mu_prop[l, :] = multivariate_normal(mean=mu_prev[l, :], cov=np.eye(self.n_feat) * mu_jump_length).rvs()
         return mu_prop
-
-    def calc_sum_log_mixture_density_loop(self, comp_coef, mu, cov):
-        """
-        Calculate sum of log mixture density with each observation at every element.
-        :param comp_coef: Component coefficient.
-        :param mu: Mean matrix
-        :param cov: Covariance matrix
-        :return: summed log mixture density of the system
-        """
-        if self.dim == 1:
-            lmd = 0.
-
-            for x in range(len(self.coords)):
-                storage2 = []
-                for l in range(self.n_labels):
-                    a = comp_coef[x, l] * multivariate_normal(mean=mu[l, :], cov=cov[l, :, :]).pdf(self.obs[x])
-                    # print(a)
-                    storage2.append(a)
-
-                lmd += (np.log(np.sum(storage2)))
-
-        else:
-            pass
-        # TODO: 2-dimensional log mixture density
-        # TODO: 3-dimensional log mixture density
-
-        return lmd
 
     def calc_sum_log_mixture_density(self, comp_coef, mu, cov):
         """
@@ -611,6 +616,15 @@ def _cov_proposal_rotation_matrix(x, y, theta):
 def calc_labels_prob(te, t):
     """"Calculate labels probability for array of total energies (te) and totally arbitrary skalar value t."""
     return (np.exp(-te/t).T / np.sum(np.exp(-te/t), axis=1)).T
+
+
+def calc_log_prior_density(self, mu, rv_mu):
+    """
+    :param mu:
+    :param rv_mu:
+    :return:
+    """
+    return np.log(rv_mu.pdf(mu))
 
 
 def define_neighborhood_system(coordinates):

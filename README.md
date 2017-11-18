@@ -35,7 +35,7 @@ Instantiate the classifier with the physical coordinates vector, the feature vec
 
     clf = bayseg.BaySeg(coordinates_vector, feature_vectors, n_labels)
     
-Then use the _fit()_ method to classify the algorithm for your desired number of iterations:
+Then use the _fit()_ method to classify your data with your desired number of iterations:
 
     clf.fit(n_iterations)
 

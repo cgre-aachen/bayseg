@@ -83,6 +83,7 @@ class BaySeg:
         # generate nu
         self.nu = self.n_feat + 1
         # ************************************************************************************************
+        self.colors = pseudocolor(self.coords)
 
     def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005,
             theta_jump_length=0.0005, t=1., verbose=False):
@@ -124,7 +125,7 @@ class BaySeg:
         if verbose == "energy":
             print("likelihood energy:", energy_like)
         # 2 - calculate gibbs/mrf energy
-        gibbs_energy = self.calc_gibbs_energy(self.labels[-1], self.betas[-1])
+        gibbs_energy = self.calc_gibbs_energy_loop(self.labels[-1], self.betas[-1])
         if verbose == "energy":
             print("gibbs energy:", gibbs_energy)
         # 3 - self energy
@@ -134,27 +135,24 @@ class BaySeg:
         total_energy = energy_like + self_energy + gibbs_energy
         if verbose == "energy":
             print("total_energy:", total_energy)
-
         # ************************************************************************************************
         # CALCULATE PROBABILITY OF LABELS
         labels_prob = calc_labels_prob(total_energy, t)
         if verbose == "energy":
             print("Labels probability:", labels_prob)
-
         # ************************************************************************************************
         # DRAW NEW LABELS FOR EVERY ELEMENT
         new_labels = np.array([np.random.choice(list(range(self.n_labels)), p=labels_prob[x, :]) for x in range(len(self.coords))])
         self.labels.append(new_labels)
         # ************************************************************************************************
         # RECALCULATE Gibbs energy with new labels
-        gibbs_energy = self.calc_gibbs_energy(new_labels, self.betas[-1])
+        gibbs_energy = calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
+        # ************************************************************************************************
         # calculate energy for component coefficient
         energy_for_comp_coef = gibbs_energy + self_energy
-
         # ************************************************************************************************
         # CALCULATE COMPONENT COEFFICIENT
         comp_coef = calc_labels_prob(energy_for_comp_coef, t)
-
         # ************************************************************************************************
         # ************************************************************************************************
         # PROPOSAL STEP
@@ -248,7 +246,7 @@ class BaySeg:
 
         lmd_prev = self.calc_sum_log_mixture_density(comp_coef, self.mus[-1], self.covs[-1])
 
-        gibbs_energy_prop = self.calc_gibbs_energy(new_labels, beta_prop)  # calculate gibbs energy with new labels and proposed beta
+        gibbs_energy_prop = self.calc_gibbs_energy_loop(new_labels, beta_prop)  # calculate gibbs energy with new labels and proposed beta
         energy_for_comp_coef_prop = gibbs_energy_prop + self_energy
         comp_coef_prop = calc_labels_prob(energy_for_comp_coef_prop, t)
 
@@ -297,7 +295,7 @@ class BaySeg:
             bic_min = np.where(np.abs(bic_diffs) < d)[0][0]
 
             # do a nice plot so the user knows intuitively whats happening
-            fig, ax = plt.subplots(ncols=2)
+            fig, ax = plt.subplots(ncols=2, figsize=(15, 10))
             ax[0].plot(n_comp, bics, label="bic")
             ax[0].plot(n_comp[bic_min], bics[bic_min], "ko")
             ax[0].set_title("Bayesian Information Criterion")
@@ -370,8 +368,6 @@ class BaySeg:
         :param mu_jump_length: Hyperparameter specifying the strength of the perturbation.
         :return: Perturbed mu matrix.
         """
-        # create proposal covariance depending on observation dimensionality
-        sigma_prop = np.eye(self.n_feat) * mu_jump_length
         # prepare matrix
         mu_prop = np.ones((self.n_labels, self.n_feat))
         # loop over labels
@@ -420,7 +416,7 @@ class BaySeg:
 
         return energy_like_labels
 
-    def calc_gibbs_energy(self, labels, beta):
+    def calc_gibbs_energy_loop(self, labels, beta):
         """
         Calculates Gibbs energy for each element using a penalty factor beta.
         :param labels: Array of labels at each element.
@@ -445,6 +441,8 @@ class BaySeg:
 
         # TODO: Optimize gibbs energy calculation
         return gibbs_energy
+
+
 
     def mcr(self, true_labels):
         """Compares classified with true labels for each iteration step (for synthetic data)
@@ -557,6 +555,36 @@ class BaySeg:
             ax8.set_xlabel("Iterations")
 
         plt.show()
+
+
+def calc_gibbs_energy_vect(labels, beta, n_labels):
+    """
+    Calculates Gibbs energy for each element using a penalty factor beta.
+    :param labels:
+    :param beta:
+    :param n_labels:
+    :return: Gibbs energy matrix (n_obs times n_labels)
+    """
+
+    # TODO: 2d implementation of gibbs energy
+    # TODO: 3d implementation of gibbs energy
+
+    # tile
+    lt = np.tile(labels, (n_labels, 1)).T
+
+    ge = np.arange(n_labels)  # elemnts x labels
+    ge = np.tile(ge, (len(labels), 1))
+    ge = ge.astype(float)
+
+    # first row
+    top = np.expand_dims(np.not_equal(np.arange(n_labels), lt[1, :]) * beta, axis=0)
+    # mid
+    mid = (np.not_equal(ge[1:-1, :], lt[:-2, :]).astype(float) + np.not_equal(ge[1:-1, :], lt[2:, :]).astype(
+        float)) * beta
+    # last row
+    bot = np.expand_dims(np.not_equal(np.arange(n_labels), lt[-1, :]) * beta, axis=0)
+    # put back together and return gibbs energy
+    return np.concatenate((top, mid, bot))
 
 
 def propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length):
@@ -673,4 +701,12 @@ def define_neighborhood_system(coordinates):
         # TODO: neighborhood system for 3 dimensions
 
     return neighbors
+
+
+def pseudocolor(coords):
+    #
+    i_w = np.arange(0, len(coords), step=2)
+    i_b = np.arange(1, len(coords), step=2)
+
+    return np.array([i_w, i_b]).T
 

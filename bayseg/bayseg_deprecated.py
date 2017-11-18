@@ -24,3 +24,30 @@ def calc_sum_log_mixture_density_loop(self, comp_coef, mu, cov):
     # TODO: 3-dimensional log mixture density
 
     return lmd
+
+
+def calc_gibbs_energy_loop(self, labels, beta):
+    """
+    Calculates Gibbs energy for each element using a penalty factor beta.
+    :param labels: Array of labels at each element.
+    :param beta: Energetic penalty parameter.
+    :return: Gibbs energy for each element.
+    """
+    if self.dim == 1:
+        # create ndarray for gibbs energy depending on element structure and n_labels
+        gibbs_energy = np.zeros((len(self.coords), self.n_labels))
+        for x, nl in enumerate(self.neighborhood):
+            for n in nl:
+                for l in range(self.n_labels):
+                    if l != labels[n]:
+                        gibbs_energy[x, l] += beta
+
+    elif self.dim == 2:
+        pass
+        # TODO: 2-dimensional calculation of gibbs energy
+    elif self.dim == 3:
+        pass
+        # TODO: 3-dimensional calculation of gibbs energy
+
+    # TODO: Optimize gibbs energy calculation
+    return gibbs_energy

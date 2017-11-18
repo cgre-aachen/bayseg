@@ -14,10 +14,11 @@ import tqdm  # progress bar
 import matplotlib.pyplot as plt
 from matplotlib import gridspec  # plot arrangements
 plt.style.use('bmh')
+from .colors import cmap, cmap_norm
 
 
 class BaySeg:
-    def __init__(self, coordinates, observations, n_labels, beta_init=1, bic=False, d_factor=5):
+    def __init__(self, coordinates, observations, n_labels, beta_init=1):
         """
 
         :param coordinates: Physical coordinate system as numpy ndarray (n_coord, 1)
@@ -42,10 +43,12 @@ class BaySeg:
         # self.labels = np.array([], dtype=object)
         # ************************************************************************************************
         # generate neighborhood system
-        self.neighborhood = define_neighborhood_system(coordinates)
+        self.neighborhood = _define_neighborhood_system(coordinates)
         # ************************************************************************************************
         # INIT GAUSSIAN MIXTURE MODEL
-        self.n_labels, self.gmm = self.initialize_gmm(bic, n_labels, d_factor)
+        self.n_labels = n_labels
+        self.gmm = mixture.GaussianMixture(n_components=n_labels, covariance_type="full")
+        self.gmm.fit(self.obs)
         # do initial prediction based on fit and observations, store as first entry in labels
         # ************************************************************************************************
         # INIT LABELS based on GMM
@@ -83,7 +86,8 @@ class BaySeg:
         # generate nu
         self.nu = self.n_feat + 1
         # ************************************************************************************************
-        self.colors = pseudocolor(self.coords)
+        # do graph coloring
+        self.colors = _pseudocolor(self.coords)
 
     def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005,
             theta_jump_length=0.0005, t=1., verbose=False):
@@ -125,7 +129,7 @@ class BaySeg:
         if verbose == "energy":
             print("likelihood energy:", energy_like)
         # 2 - calculate gibbs/mrf energy
-        gibbs_energy = self.calc_gibbs_energy_loop(self.labels[-1], self.betas[-1])
+        gibbs_energy = _calc_gibbs_energy_vect(self.labels[-1], self.betas[-1], self.n_labels)
         if verbose == "energy":
             print("gibbs energy:", gibbs_energy)
         # 3 - self energy
@@ -137,22 +141,44 @@ class BaySeg:
             print("total_energy:", total_energy)
         # ************************************************************************************************
         # CALCULATE PROBABILITY OF LABELS
-        labels_prob = calc_labels_prob(total_energy, t)
+        labels_prob = _calc_labels_prob(total_energy, t)
         if verbose == "energy":
             print("Labels probability:", labels_prob)
         # ************************************************************************************************
-        # DRAW NEW LABELS FOR EVERY ELEMENT
+        # DRAW NEW LABELS FOR EACH ELEMENT OF THE 1st COLOR
+        # color_f = self.colors[:, 0]
+        # # make copy of previous labels
+        # new_labels = self.labels[-1]
+        # # draw new labels for first color
+        # new_labels[color_f] = np.array([np.random.choice(list(range(self.n_labels)), p=labels_prob[x, :]) for x in range(len(self.coords[color_f]))])
+        # # self.labels.append(new_labels)
+        # # recalculate Gibbs energy with new labels
+        # gibbs_energy = calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
+        # # recalculate total energy
+        # total_energy = energy_like + self_energy + gibbs_energy
+        # # recalculate labels probability
+        # labels_prob = calc_labels_prob(total_energy, t)
+        # # ************************************************************************************************
+        # # DRAW NEW LABELS FOR EACH ELEMENT OF THE 2nd COLOR
+        # color_f = self.colors[:, 1]
+        # new_labels[color_f] = np.array([np.random.choice(list(range(self.n_labels)), p=labels_prob[x, :]) for x in range(len(self.coords[color_f]))])
+        # # recalculate gibbs energy
+        # gibbs_energy = calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
+        # # append labels to storage
+        # self.labels.append(new_labels)
+
         new_labels = np.array([np.random.choice(list(range(self.n_labels)), p=labels_prob[x, :]) for x in range(len(self.coords))])
+        # recalculate gibbs energy
+        gibbs_energy = _calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
+        # append labels to storage
         self.labels.append(new_labels)
-        # ************************************************************************************************
-        # RECALCULATE Gibbs energy with new labels
-        gibbs_energy = calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
+
         # ************************************************************************************************
         # calculate energy for component coefficient
         energy_for_comp_coef = gibbs_energy + self_energy
         # ************************************************************************************************
         # CALCULATE COMPONENT COEFFICIENT
-        comp_coef = calc_labels_prob(energy_for_comp_coef, t)
+        comp_coef = _calc_labels_prob(energy_for_comp_coef, t)
         # ************************************************************************************************
         # ************************************************************************************************
         # PROPOSAL STEP
@@ -162,7 +188,7 @@ class BaySeg:
         # print("beta prop:", beta_prop)
         mu_prop = self.propose_mu(self.mus[-1], mu_jump_length)
         # print("mu prop:", mu_prop)
-        cov_prop = propose_cov(self.covs[-1], self.n_feat, self.n_labels, cov_volume_jump_length, theta_jump_length)
+        cov_prop = _propose_cov(self.covs[-1], self.n_feat, self.n_labels, cov_volume_jump_length, theta_jump_length)
         # print("cov_prop:", cov_prop)
 
         # ************************************************************************************************
@@ -246,9 +272,9 @@ class BaySeg:
 
         lmd_prev = self.calc_sum_log_mixture_density(comp_coef, self.mus[-1], self.covs[-1])
 
-        gibbs_energy_prop = self.calc_gibbs_energy_loop(new_labels, beta_prop)  # calculate gibbs energy with new labels and proposed beta
+        gibbs_energy_prop = _calc_gibbs_energy_vect(new_labels, beta_prop, self.n_labels)  # calculate gibbs energy with new labels and proposed beta
         energy_for_comp_coef_prop = gibbs_energy_prop + self_energy
-        comp_coef_prop = calc_labels_prob(energy_for_comp_coef_prop, t)
+        comp_coef_prop = _calc_labels_prob(energy_for_comp_coef_prop, t)
 
         lmd_prop = self.calc_sum_log_mixture_density(comp_coef_prop, self.mus[-1], self.covs[-1])
 
@@ -269,53 +295,6 @@ class BaySeg:
             self.betas.append(beta_prop)
         else:
             self.betas.append(self.betas[-1])
-
-    def initialize_gmm(self, bic, n_labels, d_factor=5):
-
-        """
-        Initializes GMM using either a single n_labels, or does BIC analysis and choses best n_labels basedon
-        feature space.
-        :param bic: (bool) choice if BIC or not
-        :param n_labels: (int)
-        """
-        if bic:
-            n_comp = np.arange(1, n_labels+1)
-            # create array of GMMs in range of components/labels and fit to observations
-            gmms = np.array([mixture.GaussianMixture(n_components=n, covariance_type="full").fit(self.obs) for n in n_comp])
-            # calculate BIC for each GMM based on observartions
-            bics = np.array([gmm.bic(self.obs) for gmm in gmms])
-            # take sequential difference
-            bic_diffs = np.ediff1d(bics)
-
-            # find index of minimum BIC
-            # bic_min = np.argmin(bics)
-            bic_diffs_min = np.argmin(np.abs(bic_diffs))
-
-            d = np.abs(bic_diffs[bic_diffs_min] * d_factor)
-            bic_min = np.where(np.abs(bic_diffs) < d)[0][0]
-
-            # do a nice plot so the user knows intuitively whats happening
-            fig, ax = plt.subplots(ncols=2, figsize=(15, 10))
-            ax[0].plot(n_comp, bics, label="bic")
-            ax[0].plot(n_comp[bic_min], bics[bic_min], "ko")
-            ax[0].set_title("Bayesian Information Criterion")
-            ax[0].set_xlabel("Number of Labels")
-            ax[0].axvline(n_comp[bic_min], color="black", linestyle="dashed", linewidth=0.75)
-
-            ax[1].plot(n_comp[:-1], bic_diffs, label="bic")
-            ax[1].axhline(-d, color="black", linestyle="dashed", linewidth=0.75)
-            ax[1].axhline(d, color="black", linestyle="dashed", linewidth=0.75)
-            ax[1].plot(n_comp[bic_min], bic_diffs[bic_min], "ko")
-
-            plt.show()
-            print("n_labels (bic): ", bic_min)
-
-            bic_min = int(input("n_labels:"))
-
-            return n_comp[bic_min], gmms[bic_min]
-        else:
-            # if no BIC, just simply use the provided n_labels
-            return n_labels, mixture.GaussianMixture(n_components=n_labels, covariance_type="full").fit(self.obs)
 
     def log_prior_density_mu(self, mu, label):
         """
@@ -416,34 +395,6 @@ class BaySeg:
 
         return energy_like_labels
 
-    def calc_gibbs_energy_loop(self, labels, beta):
-        """
-        Calculates Gibbs energy for each element using a penalty factor beta.
-        :param labels: Array of labels at each element.
-        :param beta: Energetic penalty parameter.
-        :return: Gibbs energy for each element.
-        """
-        if self.dim == 1:
-            # create ndarray for gibbs energy depending on element structure and n_labels
-            gibbs_energy = np.zeros((len(self.coords), self.n_labels))
-            for x, nl in enumerate(self.neighborhood):
-                for n in nl:
-                    for l in range(self.n_labels):
-                        if l != labels[n]:
-                            gibbs_energy[x, l] += beta
-
-        elif self.dim == 2:
-            pass
-            # TODO: 2-dimensional calculation of gibbs energy
-        elif self.dim == 3:
-            pass
-            # TODO: 3-dimensional calculation of gibbs energy
-
-        # TODO: Optimize gibbs energy calculation
-        return gibbs_energy
-
-
-
     def mcr(self, true_labels):
         """Compares classified with true labels for each iteration step (for synthetic data)
         to obtain a measure of mismatch/convergence."""
@@ -512,7 +463,7 @@ class BaySeg:
 
         plt.show()
 
-    def diagnostics_plot(self, true_labels=None, cmap="viridis"):
+    def diagnostics_plot(self, true_labels=None):
         """
         Diagnostic plots for analyzing convergence: beta trace, correlation coefficient trace, labels trace and MCR.
         :param true_labels: If given calculates and plots MCR
@@ -541,7 +492,7 @@ class BaySeg:
 
         # plot labels
         ax1 = plt.subplot(gs[1, :])
-        ax1.imshow(np.array(self.labels), cmap=cmap, aspect='auto', interpolation='nearest')
+        ax1.imshow(np.array(self.labels), cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
         ax1.set_ylabel("Iterations")
         ax1.set_xlabel("x")
         ax1.set_title("Labels")
@@ -557,7 +508,7 @@ class BaySeg:
         plt.show()
 
 
-def calc_gibbs_energy_vect(labels, beta, n_labels):
+def _calc_gibbs_energy_vect(labels, beta, n_labels):
     """
     Calculates Gibbs energy for each element using a penalty factor beta.
     :param labels:
@@ -587,7 +538,7 @@ def calc_gibbs_energy_vect(labels, beta, n_labels):
     return np.concatenate((top, mid, bot))
 
 
-def propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length):
+def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length):
     """
     Proposes a perturbed n-dimensional covariance matrix based on an existing one and a
     covariance jump length and theta jump length parameter.
@@ -659,12 +610,12 @@ def _cov_proposal_rotation_matrix(x, y, theta):
     return rotation_matrix
 
 
-def calc_labels_prob(te, t):
+def _calc_labels_prob(te, t):
     """"Calculate labels probability for array of total energies (te) and totally arbitrary skalar value t."""
     return (np.exp(-te/t).T / np.sum(np.exp(-te/t), axis=1)).T
 
 
-def calc_log_prior_density(self, mu, rv_mu):
+def _calc_log_prior_density(self, mu, rv_mu):
     """
     :param mu:
     :param rv_mu:
@@ -673,7 +624,7 @@ def calc_log_prior_density(self, mu, rv_mu):
     return np.log(rv_mu.pdf(mu))
 
 
-def define_neighborhood_system(coordinates):
+def _define_neighborhood_system(coordinates):
     """
 
     :param coordinates:
@@ -703,10 +654,44 @@ def define_neighborhood_system(coordinates):
     return neighbors
 
 
-def pseudocolor(coords):
+def _pseudocolor(coords):
     #
     i_w = np.arange(0, len(coords), step=2)
     i_b = np.arange(1, len(coords), step=2)
 
     return np.array([i_w, i_b]).T
 
+
+def bic(features_vector, n_labels, d_factor=5):
+
+    """
+    Initializes GMM using either a single n_labels, or does BIC analysis and choses best n_labels basedon
+    feature space.
+    :param bic: (bool) choice if BIC or not
+    :param n_labels: (int)
+    """
+    n_comp = np.arange(1, n_labels+1)
+    # create array of GMMs in range of components/labels and fit to observations
+    gmms = np.array([mixture.GaussianMixture(n_components=n, covariance_type="full").fit(features_vector) for n in n_comp])
+    # calculate BIC for each GMM based on observartions
+    bics = np.array([gmm.bic(features_vector) for gmm in gmms])
+    # take sequential difference
+    # bic_diffs = np.ediff1d(bics)
+
+    # find index of minimum BIC
+    # bic_min = np.argmin(bics)
+    # bic_diffs_min = np.argmin(np.abs(bic_diffs))
+
+    # d = np.abs(bic_diffs[bic_diffs_min] * d_factor)
+    bic_min = np.argmin(bics)
+
+    # do a nice plot so the user knows intuitively whats happening
+    fig = plt.figure()  # figsize=(10, 10)
+    plt.plot(n_comp, bics, label="bic")
+    plt.plot(n_comp[bic_min], bics[bic_min], "ko")
+    plt.title("Bayesian Information Criterion")
+    plt.xlabel("Number of Labels")
+    plt.axvline(n_comp[bic_min], color="black", linestyle="dashed", linewidth=0.75)
+
+    plt.show()
+    print("global minimum: ", n_comp[bic_min])

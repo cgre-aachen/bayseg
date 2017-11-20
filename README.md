@@ -13,19 +13,31 @@ Gaussian Mixture Models and Bayesian inference. The algorithm is based on the wo
 
 ### Installation
 
-As the library is still in early development, the only way to install it is to clone this repository
-and import it manually to your code:
+As the library is still in early development, the current way to install it is to clone this repository
+and then import it manually to your projects. We plan to provide convenient installation using PyPi in the future.
 
-Clone the repository:
+#### Dependencies
+
+BaySeg depends on several genius components of the Python eco-system:
+
+* `numpy` for efficient numerical implementation
+* `scikit-learn` for mixture models
+* `scipy` for its statistical functionality
+* `matplotlib` for plotting
+* `tqdm` provides convenient progress meters
+
+#### Cloning directly from GitHub
+
+First clone the repository using the command (or by manually downloading the zip file from the GitHub page)
 
     git clone https://github.com/cgre-aachen/bayseg.git
 
-Append the path:
+then append the path to the repository:
     
     import sys
     sys.path.append("path/to/cloned/repository/bayseg")
     
-Import the module:
+to import the module:
 
     import bayseg
 

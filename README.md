@@ -2,10 +2,12 @@
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)]()
 
-A Python library for unsupervised clustering of n-dimensional data based on a combination of Hidden Markov Random Fields,
-Gaussian Mixture Models and Bayesian inference. The algorithm is based on the work of
- [Wang et al., 2017](https://link.springer.com/article/10.1007/s11004-016-9663-9). It currently supports 1-dimensional
- physical space and is in an early development stage.
+A Python library for unsupervised clustering of n-dimensional datasets, designed for the segmentation of one-, two- 
+and three-dimensional data in the field of geological modeling and geophysics. The library is based on the algorithm 
+developed by [Wang et al., 2017](https://link.springer.com/article/10.1007/s11004-016-9663-9) and combines Hidden Markov
+Random Fields with Gaussian Mixture Models in a Bayesian inference framework. It currently supports one physical 
+dimension and is in an early development stage, but we are working tirelessly on increasing its efficiency, ease of use
+and expanding the implementation to two and three physical dimensions.
  
 ![alt text](data/images/front_gif.gif)
 

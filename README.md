@@ -2,10 +2,12 @@
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)]()
 
-A Python library for unsupervised clustering of n-dimensional data based on a combination of Hidden Markov Random Fields,
-Gaussian Mixture Models and Bayesian inference. The algorithm is based on the work of
- [Wang et al., 2017](https://link.springer.com/article/10.1007/s11004-016-9663-9). It currently supports 1-dimensional
- physical space and is in an early development stage.
+A Python library for unsupervised clustering of n-dimensional datasets, designed for the segmentation of one-, two- 
+and three-dimensional data in the field of geological modeling and geophysics. The library is based on the algorithm 
+developed by [Wang et al., 2017](https://link.springer.com/article/10.1007/s11004-016-9663-9) and combines Hidden Markov
+Random Fields with Gaussian Mixture Models in a Bayesian inference framework. It currently supports one physical 
+dimension and is in an early development stage, but we are working tirelessly on increasing its efficiency, ease of use
+and expanding the implementation to two and three physical dimensions.
  
 ![alt text](data/images/front_gif.gif)
 
@@ -13,19 +15,31 @@ Gaussian Mixture Models and Bayesian inference. The algorithm is based on the wo
 
 ### Installation
 
-As the library is still in early development, the only way to install it is to clone this repository
-and import it manually to your code:
+As the library is still in early development, the current way to install it is to clone this repository
+and then import it manually to your projects. We plan to provide convenient installation using PyPi in the future.
 
-Clone the repository:
+#### Dependencies
+
+BaySeg depends on several genius components of the Python eco-system:
+
+* `numpy` for efficient numerical implementation
+* `scikit-learn` for mixture models
+* `scipy` for its statistical functionality
+* `matplotlib` for plotting
+* `tqdm` provides convenient progress meters
+
+#### Cloning directly from GitHub
+
+First clone the repository using the command (or by manually downloading the zip file from the GitHub page)
 
     git clone https://github.com/cgre-aachen/bayseg.git
 
-Append the path:
+then append the path to the repository:
     
     import sys
     sys.path.append("path/to/cloned/repository/bayseg")
     
-Import the module:
+to import the module:
 
     import bayseg
 

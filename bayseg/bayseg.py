@@ -1,8 +1,8 @@
 """Spatial segmentation with multiple features using Hidden Markov Random Fields and Finite Mixture Models
 
-Approach based on Wang et al. 2016 paper
+Approach based on Wang et al. 2017 paper
 
-@author: Alexander Schaaf, Hui Wang
+@author: Alexander Schaaf, Hui Wang, Florian Wellmann
 """
 
 import numpy as np
@@ -10,11 +10,11 @@ from sklearn import mixture
 from scipy.stats import multivariate_normal, norm
 from copy import copy
 from itertools import combinations
-import tqdm  # progress bar
+import tqdm  # smart-ish progress bar
 import matplotlib.pyplot as plt
 from matplotlib import gridspec  # plot arrangements
-plt.style.use('bmh')
 from .colors import cmap, cmap_norm
+plt.style.use('bmh')
 
 
 class BaySeg:
@@ -52,6 +52,7 @@ class BaySeg:
         # do initial prediction based on fit and observations, store as first entry in labels
         # ************************************************************************************************
         # INIT LABELS based on GMM
+        # TODO: storage variables from lists to numpy ndarrays
         self.labels = [self.gmm.predict(self.obs)]
         # ************************************************************************************************
         # INIT MU (mean from initial GMM)
@@ -144,6 +145,8 @@ class BaySeg:
         labels_prob = _calc_labels_prob(total_energy, t)
         if verbose == "energy":
             print("Labels probability:", labels_prob)
+
+        # TODO: draw labels consecutively
         # ************************************************************************************************
         # DRAW NEW LABELS FOR EACH ELEMENT OF THE 1st COLOR
         # color_f = self.colors[:, 0]
@@ -631,7 +634,6 @@ def _define_neighborhood_system(coordinates):
     :return:
     """
     dim = np.shape(coordinates)[1]
-    # TODO: neighborhood array creation for 2+ dimensions
     neighbors = [None for i in range(len(coordinates))]
 
     if dim == 1:
@@ -662,19 +664,18 @@ def _pseudocolor(coords):
     return np.array([i_w, i_b]).T
 
 
-def bic(features_vector, n_labels, d_factor=5):
-
+def bic(feat_vector, n_labels):
     """
     Initializes GMM using either a single n_labels, or does BIC analysis and choses best n_labels basedon
     feature space.
-    :param bic: (bool) choice if BIC or not
-    :param n_labels: (int)
+    :param feat_vector: (np.ndarray) containing the observations/features
+    :param n_labels: (int) maximum number of clusters considered in the BIC analysis
     """
     n_comp = np.arange(1, n_labels+1)
     # create array of GMMs in range of components/labels and fit to observations
-    gmms = np.array([mixture.GaussianMixture(n_components=n, covariance_type="full").fit(features_vector) for n in n_comp])
+    gmms = np.array([mixture.GaussianMixture(n_components=n, covariance_type="full").fit(feat_vector) for n in n_comp])
     # calculate BIC for each GMM based on observartions
-    bics = np.array([gmm.bic(features_vector) for gmm in gmms])
+    bics = np.array([gmm.bic(feat_vector) for gmm in gmms])
     # take sequential difference
     # bic_diffs = np.ediff1d(bics)
 

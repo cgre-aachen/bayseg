@@ -8,7 +8,7 @@ import pickle
 import sys
 sys.path.append("../")
 import bayseg
-#plt.style.use('bmh')  # seaborn-colorblind
+# plt.style.use('bmh')  # seaborn-colorblind
 # load pickle sample file
 clf = pickle.load(open("../data/example.p", "rb"))
 

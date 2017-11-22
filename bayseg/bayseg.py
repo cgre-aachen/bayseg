@@ -146,31 +146,22 @@ class BaySeg:
         if verbose == "energy":
             print("Labels probability:", labels_prob)
 
-        # TODO: draw labels consecutively
-        # ************************************************************************************************
-        # DRAW NEW LABELS FOR EACH ELEMENT OF THE 1st COLOR
-        # color_f = self.colors[:, 0]
-        # # make copy of previous labels
-        # new_labels = self.labels[-1]
-        # # draw new labels for first color
-        # new_labels[color_f] = np.array([np.random.choice(list(range(self.n_labels)), p=labels_prob[x, :]) for x in range(len(self.coords[color_f]))])
-        # # self.labels.append(new_labels)
-        # # recalculate Gibbs energy with new labels
-        # gibbs_energy = calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
-        # # recalculate total energy
-        # total_energy = energy_like + self_energy + gibbs_energy
-        # # recalculate labels probability
-        # labels_prob = calc_labels_prob(total_energy, t)
-        # # ************************************************************************************************
-        # # DRAW NEW LABELS FOR EACH ELEMENT OF THE 2nd COLOR
-        # color_f = self.colors[:, 1]
-        # new_labels[color_f] = np.array([np.random.choice(list(range(self.n_labels)), p=labels_prob[x, :]) for x in range(len(self.coords[color_f]))])
-        # # recalculate gibbs energy
-        # gibbs_energy = calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
-        # # append labels to storage
-        # self.labels.append(new_labels)
+        # make copy of previous labels
+        new_labels = copy(self.labels[-1])
+        # draw new labels for 1 color only
+        color_f = self.colors[:, 0]
 
-        new_labels = np.array([np.random.choice(list(range(self.n_labels)), p=labels_prob[x, :]) for x in range(len(self.coords))])
+        new_labels[color_f] = np.array([np.random.choice(list(range(self.n_labels)), p=labels_prob[x, :]) for x in color_f])
+
+        # now recalc gibbs energy and other energies from the mixture of old and new labels
+        gibbs_energy = _calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
+        total_energy = energy_like + self_energy + gibbs_energy
+        labels_prob = _calc_labels_prob(total_energy, t)
+
+        # now draw new labels for the other color
+        color_f = self.colors[:, 1]
+        new_labels[color_f] = np.array([np.random.choice(list(range(self.n_labels)), p=labels_prob[x, :]) for x in color_f])
+
         # recalculate gibbs energy
         gibbs_energy = _calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
         # append labels to storage
@@ -386,6 +377,7 @@ class BaySeg:
         """
 
         energy_like_labels = np.zeros((len(self.coords), self.n_labels))
+
         if self.dim == 1:
             for x in range(len(self.coords)):
                 for l in  range(self.n_labels):

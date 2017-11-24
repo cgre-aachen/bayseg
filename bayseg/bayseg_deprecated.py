@@ -51,3 +51,24 @@ def calc_gibbs_energy_loop(self, labels, beta):
 
     # TODO: Optimize gibbs energy calculation
     return gibbs_energy
+
+
+def calc_energy_like_loop(self, mu, cov):
+    """
+    Calculates the energy likelihood of the system.
+    :param mu: Mean values
+    :param cov: Covariance matrix
+    :return:
+    """
+
+    energy_like_labels = np.zeros((len(self.coords), self.n_labels))
+    # print("energy like shp:", np.shape(energy_like_labels))
+
+    for x in range(len(self.coords)):
+        for l in range(self.n_labels):
+            energy_like_labels[x, l] = 0.5 * np.array([self.obs[x] - mu[l, :]]) @ np.linalg.inv(cov[l, :, :]) @ np.array([self.obs[x] - mu[l, :]]).T + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
+
+    # TODO: 2-dimensional calculation of energy likelihood labels
+    # TODO: 3-dimensional calculation of energy likelihood labels
+
+    return energy_like_labels

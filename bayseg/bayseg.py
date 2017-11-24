@@ -151,7 +151,8 @@ class BaySeg:
         # draw new labels for 1 color only
         color_f = self.colors[:, 0]
 
-        new_labels[color_f] = np.array([np.random.choice(list(range(self.n_labels)), p=labels_prob[x, :]) for x in color_f])
+        # TODO: Make labels draw vectorized
+        new_labels[color_f] = np.array([np.random.choice(self.n_labels, p=labels_prob[x, :]) for x in color_f])
 
         # now recalc gibbs energy and other energies from the mixture of old and new labels
         gibbs_energy = _calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
@@ -160,7 +161,7 @@ class BaySeg:
 
         # now draw new labels for the other color
         color_f = self.colors[:, 1]
-        new_labels[color_f] = np.array([np.random.choice(list(range(self.n_labels)), p=labels_prob[x, :]) for x in color_f])
+        new_labels[color_f] = np.array([np.random.choice(self.n_labels, p=labels_prob[x, :]) for x in color_f])
 
         # recalculate gibbs energy
         gibbs_energy = _calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
@@ -370,6 +371,7 @@ class BaySeg:
 
     def calc_energy_like(self, mu, cov):
         """
+        (C) Powei
         Calculates the energy likelihood of the system.
         :param mu: Mean values
         :param cov: Covariance matrix
@@ -378,13 +380,9 @@ class BaySeg:
 
         energy_like_labels = np.zeros((len(self.coords), self.n_labels))
 
-        if self.dim == 1:
-            for x in range(len(self.coords)):
-                for l in  range(self.n_labels):
-                    energy_like_labels[x, l] = 0.5 * np.array([self.obs[x] - mu[l, :]]) @ np.linalg.inv(cov[l, :, :]) @ np.array([self.obs[x] - mu[l, :]]).T + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
+        for l in range(self.n_labels):
+            energy_like_labels[:, l] = np.einsum("...i,ji,...j", 0.5 * np.array([self.obs - mu[l, :]]), np.linalg.inv(cov[l, :, :]), np.array([self.obs - mu[l, :]])) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
 
-        else:
-            pass
         # TODO: 2-dimensional calculation of energy likelihood labels
         # TODO: 3-dimensional calculation of energy likelihood labels
 
@@ -570,7 +568,6 @@ def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length)
         # print("shape a:", np.shape(a))
         for j in range(n_comb):
             rotation_matrix = _cov_proposal_rotation_matrix(v_l[:, comb[j][0]], v_l[:, comb[j][1]], theta_jump[j])
-            # print("rot mat:", rotation_matrix)
             # print("rot mat:", rotation_matrix)
             a = rotation_matrix @ a
             # print("a:", a)

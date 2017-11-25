@@ -191,7 +191,7 @@ class BaySeg:
         for l in range(self.n_labels):
             # **************************************************************
             # UPDATE MU
-            # logprob prior density for mu
+            # log-prob prior density for mu
             mu_temp = copy(mu_next)
             mu_temp[l, :] = mu_prop[l, :]
 
@@ -225,7 +225,7 @@ class BaySeg:
 
             # print("cov diff:", cov_next[l, :, :]-cov_temp[l, :, :])
 
-            # logprob prior density for covariance
+            # log-prob prior density for covariance
             lp_cov_prev = self.log_prior_density_cov(cov_next, l)
             # print("lp_cov_prev:", lp_cov_prev)
             lp_cov_prop = self.log_prior_density_cov(cov_temp, l)
@@ -285,6 +285,7 @@ class BaySeg:
             self.betas.append(beta_prop)
         else:
             self.betas.append(self.betas[-1])
+        # **************************************************************
 
     def log_prior_density_mu(self, mu, label):
         """
@@ -570,7 +571,6 @@ def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length)
 
     # loop over all labels (=layers of the covariance matrix)
     for l in range(n_labels):
-
         v_l, d_l, v_l_t = np.linalg.svd(cov_prev[l, :, :])
         # print("v_l:", v_l)
         # generate d jump
@@ -580,7 +580,6 @@ def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length)
         d_prop = np.diag(np.exp(np.log(d_l) + log_d_jump))
         # else:
         #    d_prop = np.vstack((d_prop, np.exp(np.log(d_l) + np.log(d_jump))))
-
         # now tackle generating v jump
         a = np.eye(n_feat)
         # print("a init:", a)
@@ -594,7 +593,6 @@ def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length)
         v_prop = a @ v_l  # np.matmul(a, v_l)
         # print("d_prop:", d_prop)
         # print("v_prop:", np.shape(v_prop))
-        # TODO: Is this proposal covariance slicing correct?
         cov_prop[l, :, :] = v_prop @ d_prop @ v_prop.T  # np.matmul(np.matmul(v_prop, d_prop), v_prop.T)
         # print("cov_prop:", cov_prop)
 
@@ -635,33 +633,7 @@ def _calc_log_prior_density(self, mu, rv_mu):
     return np.log(rv_mu.pdf(mu))
 
 
-def _define_neighborhood_system(coordinates):
-    """
 
-    :param coordinates:
-    :return:
-    """
-    dim = np.shape(coordinates)[1]
-    neighbors = [None for i in range(len(coordinates))]
-
-    if dim == 1:
-        for i, c in enumerate(coordinates):
-            if i == 0:
-                neighbors[i] = [i + 1]
-            elif i == np.shape(coordinates)[0] - 1:
-                neighbors[i] = [i - 1]
-            else:
-                neighbors[i] = [i - 1, i + 1]
-
-    elif dim == 2:
-        pass
-        # TODO: neighborhood system for 2 dimensions
-
-    elif dim == 3:
-        pass
-        # TODO: neighborhood system for 3 dimensions
-
-    return neighbors
 
 
 def _pseudocolor(coords):

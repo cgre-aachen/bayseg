@@ -65,3 +65,30 @@ def calc_energy_like_loop(self, mu, cov):
 
 
     return energy_like_labels
+
+
+def _define_neighborhood_system(coordinates):
+    """
+
+    :param coordinates:
+    :return:
+    """
+    dim = np.shape(coordinates)[1]
+    neighbors = [None for i in range(len(coordinates))]
+
+    if dim == 1:
+        for i, c in enumerate(coordinates):
+            if i == 0:
+                neighbors[i] = [i + 1]
+            elif i == np.shape(coordinates)[0] - 1:
+                neighbors[i] = [i - 1]
+            else:
+                neighbors[i] = [i - 1, i + 1]
+
+    elif dim == 2:
+        pass
+
+    elif dim == 3:
+        pass
+
+    return neighbors

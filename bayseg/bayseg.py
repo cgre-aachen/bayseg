@@ -64,12 +64,8 @@ class BaySeg:
         # ************************************************************************************************
         # Initialize PRIORS
         # beta
-        if self.dim == 1:
-            self.prior_beta = norm(beta_init, np.eye(1)*100)
-
-        else:
-            pass
-            # TODO: 2d and 3d implementation of beta prior# mu
+        beta_dim = [1, 4, 13]
+        self.prior_beta = norm(beta_init, np.eye(beta_dim[self.dim - 1]) * 100)
 
         # TODO: Clean up prior initialization
         # mu

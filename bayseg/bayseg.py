@@ -30,7 +30,7 @@ plt.style.use('bmh')
 
 
 class BaySeg:
-    def __init__(self, coordinates, observations, n_labels, beta_init=1):
+    def __init__(self, coordinates, extent, observations, n_labels, beta_init=1, stamp=None):
         """
 
         :param coordinates: Physical coordinate system as numpy ndarray (n_coord, 1)
@@ -39,8 +39,10 @@ class BaySeg:
         :param beta_init: Initial beta value (float)
         :param bic: (bool) for using Bayesian Information Criterion (Schwarz, 1978) for determining n_labels
         """
-        # TODO: Main object description
+        # TODO: [DOCS] Main object description
         # store physical coordinates, set dimensionality
+        # TODO: [GENERAL] Make extent and coordinates vector implicit
+        self.extent = extent
         self.coords = coordinates
         self.dim = np.shape(coordinates)[1]
         # store observations
@@ -63,7 +65,7 @@ class BaySeg:
 
         # ************************************************************************************************
         # INIT LABELS, MU and COV based on GMM
-        # TODO: storage variables from lists to numpy ndarrays
+        # TODO: [GENERAL] storage variables from lists to numpy ndarrays
         self.labels = [self.gmm.predict(self.obs)]
         # INIT MU (mean from initial GMM)
         self.mus = [self.gmm.means_]
@@ -96,7 +98,8 @@ class BaySeg:
         # ************************************************************************************************
 
         # GRAPH COLORING
-        self.colors = _pseudocolor(self.coords)
+        self.stamp = stamp
+        self.colors = _pseudocolor(self.coords, self.extent, self.stamp)
 
     def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005,
             theta_jump_length=0.0005, t=1., verbose=False):
@@ -648,17 +651,50 @@ def _calc_log_prior_density(self, mu, rv_mu):
     return np.log(rv_mu.pdf(mu))
 
 
-
-
-
-def _pseudocolor(coords):
+def _pseudocolor(coords_vector, extent, stamp=None):
     """Graph coloring based on the physical dimensions for independent labels draw."""
-    # TODO: 2d graph coloring
-    # TODO: 3d graph coloring
-    i_w = np.arange(0, len(coords), step=2)
-    i_b = np.arange(1, len(coords), step=2)
+    dim = np.shape(coords_vector)[1]
+    # ************************************************************************************************
+    # 1-DIMENSIONAL
+    if dim == 1:
+        i_w = np.arange(0, len(coords_vector), step=2)
+        i_b = np.arange(1, len(coords_vector), step=2)
 
-    return np.array([i_w, i_b]).T
+        return np.array([i_w, i_b]).T
+
+    # ************************************************************************************************
+    # 2-DIMENSIONAL
+    elif dim == 2:
+        if stamp is None or stamp == 8:
+            # use 8 stamp as default, resulting in 4 colors
+            colors = 4
+            # color image
+            colored_image = np.tile(np.kron([[0, 1], [2, 3]] * int(extent[0] / 2), np.ones((1, 1))), int(extent[1] / 2))
+            # initialize storage array
+            ci = []
+            for c in range(colors):
+                x, y = np.where(colored_image == c)
+                ci.append(np.stack((x, y), axis=1))
+            return np.array(ci)
+        elif stamp == 4:
+            # use 4 stamp, resulting in 2 colors (checkerboard)
+            colors = 2
+            # color image
+            colored_image = np.tile(np.kron([[0, 1], [1, 0]] * int(extent[0] / 2), np.ones((1, 1))), int(extent[1] / 2))
+            # initialize storage array
+            ci = []
+            for c in range(colors):
+                x, y = np.where(colored_image == c)
+                ci.append(np.stack((x, y), axis=1))
+            return np.array(ci)
+        else:
+            raise Exception(" In 2D space the stamp parameter needs to be either None (defaults to 8), 4 or 8.")
+
+    # ************************************************************************************************
+    # 3-DIMENSIONAL
+    elif dim == 3:
+        raise Exception("3D space not yet supported.")
+        # TODO: 3d graph coloring
 
 
 def bic(feat_vector, n_labels):

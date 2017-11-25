@@ -1,8 +1,20 @@
-"""Spatial segmentation with multiple features using Hidden Markov Random Fields and Finite Mixture Models
+"""
+BaySeg is a Python library for unsupervised clustering of n-dimensional datasets, designed for the segmentation of
+one-, two- and three-dimensional data in the field of geological modeling and geophysics. The library is based on the
+algorithm developed by Wang et al., 2017 and combines Hidden Markov Random Fields with Gaussian Mixture Models in a
+Bayesian inference framework.
 
-Approach based on Wang et al. 2017 paper
+************************************************************************************************
+References
 
-@author: Alexander Schaaf, Hui Wang, Florian Wellmann
+[1] Wang, H., Wellmann, J. F., Li, Z., Wang, X., & Liang, R. Y. (2017). A Segmentation Approach for Stochastic
+    Geological Modeling Using Hidden Markov Random Fields. Mathematical Geosciences, 49(2), 145-177.
+
+************************************************************************************************
+@authors: Alexander Schaaf, Hui Wang, Florian Wellmann
+************************************************************************************************
+BaySeg is licensed under the GNU Lesser General Public License v3.0
+************************************************************************************************
 """
 
 import numpy as np
@@ -41,12 +53,14 @@ class BaySeg:
         # self.mus = np.array([], dtype=object)
         # self.covs = np.array([], dtype=object)
         # self.labels = np.array([], dtype=object)
+
         # ************************************************************************************************
         # INIT GAUSSIAN MIXTURE MODEL
         self.n_labels = n_labels
         self.gmm = mixture.GaussianMixture(n_components=n_labels, covariance_type="full")
         self.gmm.fit(self.obs)
         # do initial prediction based on fit and observations, store as first entry in labels
+
         # ************************************************************************************************
         # INIT LABELS, MU and COV based on GMM
         # TODO: storage variables from lists to numpy ndarrays
@@ -179,15 +193,15 @@ class BaySeg:
         # print("cov_prop:", cov_prop)
 
         # ************************************************************************************************
-        # COMPARE THE SHIT FOR EACH LABEL FOR EACH SHIT
+        # Compare mu, cov and beta proposals with previous, then decide which to keep for next iteration
 
         # prepare next ones
         mu_next = copy(self.mus[-1])
         cov_next = copy(self.covs[-1])
 
+        # ************************************************************************************************
+        # UPDATE MU
         for l in range(self.n_labels):
-            # **************************************************************
-            # UPDATE MU
             # log-prob prior density for mu
             mu_temp = copy(mu_next)
             mu_temp[l, :] = mu_prop[l, :]
@@ -214,9 +228,9 @@ class BaySeg:
 
         self.mus.append(mu_next)
 
+        # ************************************************************************************************
+        # UPDATE COVARIANCE
         for l in range(self.n_labels):
-            # **************************************************************
-            # UPDATE COVARIANCE
             cov_temp = copy(cov_next)
             cov_temp[l, :, :] = cov_prop[l, :, :]
 
@@ -252,19 +266,19 @@ class BaySeg:
         # append cov and mu
         self.covs.append(cov_next)
 
-        # **************************************************************
+        # ************************************************************************************************
         # UPDATE BETA
         lp_beta_prev = self.log_prior_density_beta(self.betas[-1])
         lp_beta_prop = self.log_prior_density_beta(beta_prop)
 
         lmd_prev = self.calc_sum_log_mixture_density(comp_coef, self.mus[-1], self.covs[-1])
 
-        gibbs_energy_prop = _calc_gibbs_energy_vect(new_labels, beta_prop, self.n_labels)  # calculate gibbs energy with new labels and proposed beta
+        # calculate gibbs energy with new labels and proposed beta
+        gibbs_energy_prop = _calc_gibbs_energy_vect(new_labels, beta_prop, self.n_labels)
         energy_for_comp_coef_prop = gibbs_energy_prop + self_energy
         comp_coef_prop = _calc_labels_prob(energy_for_comp_coef_prop, t)
 
         lmd_prop = self.calc_sum_log_mixture_density(comp_coef_prop, self.mus[-1], self.covs[-1])
-
         # print("lmd_prev:", lmd_prev)
         # print("lp_beta_prev:", lp_beta_prev)
         log_target_prev = lmd_prev + lp_beta_prev
@@ -282,7 +296,7 @@ class BaySeg:
             self.betas.append(beta_prop)
         else:
             self.betas.append(self.betas[-1])
-        # **************************************************************
+        # ************************************************************************************************
 
     def log_prior_density_mu(self, mu, label):
         """

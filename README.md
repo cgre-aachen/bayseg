@@ -1,6 +1,7 @@
 # BaySeg
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)]()
+[![Python 3.6.x](https://img.shields.io/badge/Python-3.6.x-lightgrey.svg)]()
 
 A Python library for unsupervised clustering of n-dimensional datasets, designed for the segmentation of one-, two- 
 and three-dimensional data in the field of geological modeling and geophysics. The library is based on the algorithm 

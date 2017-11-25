@@ -42,9 +42,6 @@ class BaySeg:
         # self.covs = np.array([], dtype=object)
         # self.labels = np.array([], dtype=object)
         # ************************************************************************************************
-        # generate neighborhood system
-        self.neighborhood = _define_neighborhood_system(coordinates)
-        # ************************************************************************************************
         # INIT GAUSSIAN MIXTURE MODEL
         self.n_labels = n_labels
         self.gmm = mixture.GaussianMixture(n_components=n_labels, covariance_type="full")
@@ -367,8 +364,8 @@ class BaySeg:
 
     def calc_energy_like(self, mu, cov):
         """
-        (C) Powei
         Calculates the energy likelihood of the system.
+        Thanks a lot to Powei for helping with the Einstein summation notation!
         :param mu: Mean values
         :param cov: Covariance matrix
         :return:
@@ -377,7 +374,9 @@ class BaySeg:
         energy_like_labels = np.zeros((len(self.coords), self.n_labels))
 
         for l in range(self.n_labels):
-            energy_like_labels[:, l] = np.einsum("...i,ji,...j", 0.5 * np.array([self.obs - mu[l, :]]), np.linalg.inv(cov[l, :, :]), np.array([self.obs - mu[l, :]])) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
+            energy_like_labels[:, l] = np.einsum("...i,ji,...j", 0.5 * np.array([self.obs - mu[l, :]]),
+                                                 np.linalg.inv(cov[l, :, :]),
+                                                 np.array([self.obs - mu[l, :]])) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
 
         # TODO: 2-dimensional calculation of energy likelihood labels
         # TODO: 3-dimensional calculation of energy likelihood labels
@@ -388,7 +387,9 @@ class BaySeg:
         """Compares classified with true labels for each iteration step (for synthetic data)
         to obtain a measure of mismatch/convergence."""
         mcr_vals = []
-        n = len(true_labels)  # TODO: 2d and 3d implementation for MCR
+        n = len(true_labels)
+        # TODO: 2d implementation for MCR
+        # TODO: 3d implementation for MCR
         for label in self.labels:
             missclassified = np.count_nonzero(true_labels - label)
             mcr_vals.append(missclassified / n)

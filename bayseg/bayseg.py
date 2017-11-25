@@ -51,29 +51,29 @@ class BaySeg:
         self.gmm.fit(self.obs)
         # do initial prediction based on fit and observations, store as first entry in labels
         # ************************************************************************************************
-        # INIT LABELS based on GMM
+        # INIT LABELS, MU and COV based on GMM
         # TODO: storage variables from lists to numpy ndarrays
         self.labels = [self.gmm.predict(self.obs)]
-        # ************************************************************************************************
         # INIT MU (mean from initial GMM)
         self.mus = [self.gmm.means_]
-        # ************************************************************************************************
         # INIT COV (covariances from initial GMM)
         self.covs = [self.gmm.covariances_]
 
         # ************************************************************************************************
-        # Initialize PRIORS
-        # beta
+        # Initialize PRIOR distributions for beta, mu and covariance
+        # BETA
         beta_dim = [1, 4, 13]
         self.prior_beta = norm(beta_init, np.eye(beta_dim[self.dim - 1]) * 100)
 
-        # TODO: Clean up prior initialization
-        # mu
-        prior_mu_means = [self.mus[0][f] for f in range(self.n_labels)]
-        prior_mu_stds = [np.eye(self.n_feat) * 100 for f in range(self.n_labels)]
-        self.priors_mu = [multivariate_normal(prior_mu_means[f], prior_mu_stds[f]) for f in range(self.n_labels)]
+        # MU
+        # generate distribution means for each label
+        prior_mu_means = [self.mus[0][label] for label in range(self.n_labels)]
+        # generate distribution covariances for each label
+        prior_mu_stds = [np.eye(self.n_feat) * 100 for label in range(self.n_labels)]
+        # use the above to generate multivariate normal distributions for each label
+        self.priors_mu = [multivariate_normal(prior_mu_means[label], prior_mu_stds[label]) for label in range(self.n_labels)]
 
-        # cov
+        # COV
         # generate b_sigma
         self.b_sigma = np.zeros((self.n_labels, self.n_feat))
         for l in range(self.n_labels):
@@ -83,7 +83,8 @@ class BaySeg:
         # generate nu
         self.nu = self.n_feat + 1
         # ************************************************************************************************
-        # do graph coloring
+
+        # GRAPH COLORING
         self.colors = _pseudocolor(self.coords)
 
     def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005,
@@ -664,7 +665,9 @@ def _define_neighborhood_system(coordinates):
 
 
 def _pseudocolor(coords):
-    #
+    """Graph coloring based on the physical dimensions for independent labels draw."""
+    # TODO: 2d graph coloring
+    # TODO: 3d graph coloring
     i_w = np.arange(0, len(coords), step=2)
     i_b = np.arange(1, len(coords), step=2)
 

@@ -511,11 +511,19 @@ class BaySeg:
 
 
 def draw_labels_vect(labels_prob):
+    """
+    Vectorized draw of the label for each elements respective labels probability.
+    :param labels_prob: (n_elements x n_labels) ndarray containing the element-specific labels probabilites
+    :return: (n_elements)-long array of labels
+    """
+    # draw a random number between 0 and 1 for each element
     r = np.random.rand(len(labels_prob))
+    # cumsum labels probabilities for each element
     p = np.cumsum(labels_prob, axis=1)
-    # p = np.concatenate((np.expand_dims(np.zeros(len(labels_prob)), axis=1), p), axis=1)
+    # calculate difference between random draw and cumsum probabilites
     d = (p.T - r).T
-    return np.count_nonzero(np.greater_equal(0, d), axis=1)  # - 1
+    # compare and count to get label
+    return np.count_nonzero(np.greater_equal(0, d), axis=1)
 
 
 def _calc_gibbs_energy_vect(labels, beta, n_labels):

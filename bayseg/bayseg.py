@@ -642,13 +642,13 @@ def _calc_labels_prob(te, t):
     return (np.exp(-te/t).T / np.sum(np.exp(-te/t), axis=1)).T
 
 
-def _calc_log_prior_density(self, mu, rv_mu):
-    """
-    :param mu:
-    :param rv_mu:
-    :return:
-    """
-    return np.log(rv_mu.pdf(mu))
+# def _calc_log_prior_density(self, mu, rv_mu):
+#     """
+#     :param mu:
+#     :param rv_mu:
+#     :return:
+#     """
+#     return np.log(rv_mu.pdf(mu))
 
 
 def _pseudocolor(coords_vector, extent, stamp=None):

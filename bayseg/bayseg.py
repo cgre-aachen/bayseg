@@ -150,18 +150,15 @@ class BaySeg:
         new_labels = copy(self.labels[-1])
         # draw new labels for 1 color only
         color_f = self.colors[:, 0]
-        # TODO: Make labels draw vectorized
-        # new_labels[color_f] = np.array([np.random.choice(self.n_labels, p=labels_prob[x, :]) for x in color_f])
         new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
 
-        # now recalc gibbs energy and other energies from the mixture of old and new labels
+        # now recalculate gibbs energy and other energies from the mixture of old and new labels
         gibbs_energy = _calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
         total_energy = energy_like + self_energy + gibbs_energy
         labels_prob = _calc_labels_prob(total_energy, t)
 
         # now draw new labels for the other color
         color_f = self.colors[:, 1]
-        #new_labels[color_f] = np.array([np.random.choice(self.n_labels, p=labels_prob[x, :]) for x in color_f])
         new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
 
         # recalculate gibbs energy
@@ -478,7 +475,7 @@ class BaySeg:
         ax1.plot(self.betas, label="beta", color="black", linewidth=1)
         ax1.set_xlabel("Iterations")
 
-        # plot corr coef
+        # plot correlation coefficient
         ax2 = plt.subplot(gs[0, -1])
         ax2.set_title("Correlation coefficient")
         for l in range(self.n_labels):
@@ -520,7 +517,7 @@ def draw_labels_vect(labels_prob):
     r = np.random.rand(len(labels_prob))
     # cumsum labels probabilities for each element
     p = np.cumsum(labels_prob, axis=1)
-    # calculate difference between random draw and cumsum probabilites
+    # calculate difference between random draw and cumsum probabilities
     d = (p.T - r).T
     # compare and count to get label
     return np.count_nonzero(np.greater_equal(0, d), axis=1)

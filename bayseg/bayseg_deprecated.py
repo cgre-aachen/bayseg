@@ -20,8 +20,6 @@ def calc_sum_log_mixture_density_loop(self, comp_coef, mu, cov):
 
     else:
         pass
-    # TODO: 2-dimensional log mixture density
-    # TODO: 3-dimensional log mixture density
 
     return lmd
 
@@ -44,12 +42,9 @@ def calc_gibbs_energy_loop(self, labels, beta):
 
     elif self.dim == 2:
         pass
-        # TODO: 2-dimensional calculation of gibbs energy
     elif self.dim == 3:
         pass
-        # TODO: 3-dimensional calculation of gibbs energy
 
-    # TODO: Optimize gibbs energy calculation
     return gibbs_energy
 
 
@@ -68,7 +63,5 @@ def calc_energy_like_loop(self, mu, cov):
         for l in range(self.n_labels):
             energy_like_labels[x, l] = 0.5 * np.array([self.obs[x] - mu[l, :]]) @ np.linalg.inv(cov[l, :, :]) @ np.array([self.obs[x] - mu[l, :]]).T + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
 
-    # TODO: 2-dimensional calculation of energy likelihood labels
-    # TODO: 3-dimensional calculation of energy likelihood labels
 
     return energy_like_labels

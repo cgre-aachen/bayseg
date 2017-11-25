@@ -12,7 +12,7 @@ from copy import copy
 from itertools import combinations
 import tqdm  # smart-ish progress bar
 import matplotlib.pyplot as plt
-from matplotlib import gridspec  # plot arrangements
+from matplotlib import gridspec, rcParams  # plot arrangements
 from .colors import cmap, cmap_norm
 plt.style.use('bmh')
 
@@ -150,9 +150,9 @@ class BaySeg:
         new_labels = copy(self.labels[-1])
         # draw new labels for 1 color only
         color_f = self.colors[:, 0]
-
         # TODO: Make labels draw vectorized
-        new_labels[color_f] = np.array([np.random.choice(self.n_labels, p=labels_prob[x, :]) for x in color_f])
+        # new_labels[color_f] = np.array([np.random.choice(self.n_labels, p=labels_prob[x, :]) for x in color_f])
+        new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
 
         # now recalc gibbs energy and other energies from the mixture of old and new labels
         gibbs_energy = _calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
@@ -161,7 +161,8 @@ class BaySeg:
 
         # now draw new labels for the other color
         color_f = self.colors[:, 1]
-        new_labels[color_f] = np.array([np.random.choice(self.n_labels, p=labels_prob[x, :]) for x in color_f])
+        #new_labels[color_f] = np.array([np.random.choice(self.n_labels, p=labels_prob[x, :]) for x in color_f])
+        new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
 
         # recalculate gibbs energy
         gibbs_energy = _calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
@@ -463,42 +464,58 @@ class BaySeg:
         :return: Fancy figures
         """
         if true_labels is not None:
-            fig = plt.figure(figsize=(15, 15))
-            gs = gridspec.GridSpec(3, 2)
+            fig = plt.figure(figsize=(15, 10))
+            gs = gridspec.GridSpec(4, 2)
         else:
             fig = plt.figure(figsize=(15, 10))
             gs = gridspec.GridSpec(2, 2)
 
+        rcParams.update({'font.size': 8})
+
         # plot beta
-        ax2 = plt.subplot(gs[0, :-1])
-        ax2.set_title(r"$\beta$")
-        ax2.plot(self.betas, label="beta", color="black", )
-        ax2.set_xlabel("Iterations")
+        ax1 = plt.subplot(gs[0, :-1])
+        ax1.set_title(r"$\beta$")
+        ax1.plot(self.betas, label="beta", color="black", linewidth=1)
+        ax1.set_xlabel("Iterations")
 
         # plot corr coef
-        ax3 = plt.subplot(gs[0, -1])
-        ax3.set_title("Correlation coefficient")
+        ax2 = plt.subplot(gs[0, -1])
+        ax2.set_title("Correlation coefficient")
         for l in range(self.n_labels):
-            ax3.plot(self.get_corr_coef_from_cov(l), label="Label " + str(l))
-        ax3.legend()
-        ax3.set_xlabel("Iterations")
+            ax2.plot(self.get_corr_coef_from_cov(l), label="Label " + str(l), linewidth=1)
+        ax2.legend()
+        ax2.set_xlabel("Iterations")
 
         # plot labels
-        ax1 = plt.subplot(gs[1, :])
-        ax1.imshow(np.array(self.labels), cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
-        ax1.set_ylabel("Iterations")
-        ax1.set_xlabel("x")
-        ax1.set_title("Labels")
-        ax1.grid(False)  # disable grid
+        ax3 = plt.subplot(gs[1, :])
+        ax3.imshow(np.array(self.labels), cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
+        ax3.set_ylabel("Iterations")
+        ax3.set_title("Labels")
+        ax3.grid(False)  # disable grid
 
         if true_labels is not None:
-            ax8 = plt.subplot(gs[2, :])
+            # plot the latent field
+            ax4 = plt.subplot(gs[2, :])
+            ax4.imshow(np.tile(np.expand_dims(true_labels, axis=1), 50).T,
+                       cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
+            ax4.set_title("Latent field")
+            ax4.grid(False)
 
-            ax8.plot(self.mcr(true_labels), color="black")
-            ax8.set_ylabel("MCR")
-            ax8.set_xlabel("Iterations")
+            # plot the mcr
+            ax5 = plt.subplot(gs[3, :])
+            ax5.plot(self.mcr(true_labels), color="black", linewidth=1)
+            ax5.set_ylabel("MCR")
+            ax5.set_xlabel("Iterations")
 
         plt.show()
+
+
+def draw_labels_vect(labels_prob):
+    r = np.random.rand(len(labels_prob))
+    p = np.cumsum(labels_prob, axis=1)
+    # p = np.concatenate((np.expand_dims(np.zeros(len(labels_prob)), axis=1), p), axis=1)
+    d = (p.T - r).T
+    return np.count_nonzero(np.greater_equal(0, d), axis=1)  # - 1
 
 
 def _calc_gibbs_energy_vect(labels, beta, n_labels):

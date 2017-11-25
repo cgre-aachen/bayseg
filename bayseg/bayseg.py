@@ -131,7 +131,7 @@ class BaySeg:
         The function updates directly on the object variables and appends new draws of labels and
         parameters to their respective storages.
         """
-        # TODO: In-depth description of the gibbs sampling function
+        # TODO: [GENERAL] In-depth description of the gibbs sampling function
 
         # ************************************************
         # CALCULATE TOTAL ENERGY
@@ -395,8 +395,8 @@ class BaySeg:
                                                  np.linalg.inv(cov[l, :, :]),
                                                  np.array([self.obs - mu[l, :]])) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
 
-        # TODO: 2-dimensional calculation of energy likelihood labels
-        # TODO: 3-dimensional calculation of energy likelihood labels
+        # TODO: [2D] 2-dimensional calculation of energy likelihood labels
+        # TODO: [3D] 3-dimensional calculation of energy likelihood labels
 
         return energy_like_labels
 
@@ -405,8 +405,8 @@ class BaySeg:
         to obtain a measure of mismatch/convergence."""
         mcr_vals = []
         n = len(true_labels)
-        # TODO: 2d implementation for MCR
-        # TODO: 3d implementation for MCR
+        # TODO: [2D] implementation for MCR
+        # TODO: [3D] implementation for MCR
         for label in self.labels:
             missclassified = np.count_nonzero(true_labels - label)
             mcr_vals.append(missclassified / n)
@@ -548,8 +548,8 @@ def _calc_gibbs_energy_vect(labels, beta, n_labels):
     :return: Gibbs energy matrix (n_obs times n_labels)
     """
 
-    # TODO: 2d implementation of gibbs energy
-    # TODO: 3d implementation of gibbs energy
+    # TODO: [2D] implementation of gibbs energy
+    # TODO: [3D] implementation of gibbs energy
 
     # tile
     lt = np.tile(labels, (n_labels, 1)).T

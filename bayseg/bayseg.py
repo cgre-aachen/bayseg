@@ -17,20 +17,20 @@ BaySeg is licensed under the GNU Lesser General Public License v3.0
 ************************************************************************************************
 """
 
-import numpy as np
-from sklearn import mixture
-from scipy.stats import multivariate_normal, norm
+import numpy as np  # scientific computing library
+from sklearn import mixture  # gaussian mixture model
+from scipy.stats import multivariate_normal, norm  # normal distributions
 from copy import copy
 from itertools import combinations
 import tqdm  # smart-ish progress bar
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt  # 2d plotting
 from matplotlib import gridspec, rcParams  # plot arrangements
-from .colors import cmap, cmap_norm
-plt.style.use('bmh')
+from .colors import cmap, cmap_norm  # custom colormap
+plt.style.use('bmh')  # plot style
 
 
 class BaySeg:
-    def __init__(self, coordinates, extent, observations, n_labels, beta_init=1, stamp=None):
+    def __init__(self, data, n_labels, beta_init=1, stamp=None):
         """
 
         :param coordinates: Physical coordinate system as numpy ndarray (n_coord, 1)
@@ -42,12 +42,46 @@ class BaySeg:
         # TODO: [DOCS] Main object description
         # store physical coordinates, set dimensionality
         # TODO: [GENERAL] Make extent and coordinates vector implicit
-        self.extent = extent
-        self.coords = coordinates
-        self.dim = np.shape(coordinates)[1]
+
+        self.data = data
+        self.shape = np.shape(data)
+
+        # get number of features
+        self.n_feat = self.shape[-1]
+
+        if len(self.shape) == 2:
+            # 1d case
+            self.dim = 1
+
+            # create coordinate vector
+            self.coords = np.array([np.arange(self.shape[0])]).T
+
+            # feature vector
+            self.obs = self.data
+
+        elif len(self.shape) == 3:
+            # 2d case
+            self.dim = 2
+
+            # create coordinate vector
+            x, y = np.indices(self.shape[:-1])
+            self.coords = np.array([x.flatten(), y.flatten()]).T
+
+            # feature vector
+            self.obs = np.array([self.data[:, :, f].flatten() for f in self.n_feat])
+
+        elif len(self.shape) == 4:
+            # 3d case
+            raise Exception("3D segmentation not yet supported.")
+        else:
+            raise Exception("Data format appears to be wrong (neither 1-, 2- or 3-D).")
+
+        # self.extent = extent
+        # self.coords = coordinates
+        # self.dim = np.shape(coordinates)[1]
         # store observations
-        self.obs = observations
-        self.n_feat = np.shape(observations)[1]
+        # self.obs = observations
+        # self.n_feat = np.shape(observations)[1]
 
         # ************************************************************************************************
         # INIT STORAGE ARRAYS
@@ -99,7 +133,7 @@ class BaySeg:
 
         # GRAPH COLORING
         self.stamp = stamp
-        self.colors = _pseudocolor(self.coords, self.extent, self.stamp)
+        self.colors = _pseudocolor(self.coords, self.shape[:-1], self.stamp)
 
     def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005,
             theta_jump_length=0.0005, t=1., verbose=False):

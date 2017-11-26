@@ -48,13 +48,13 @@ to import the module:
 
 ### Getting Started
 
-Instantiate the classifier with the physical coordinates vector, the feature vectors and the number of labels:
+Instantiate the classifier with the n-dimensional array storing the data and the number of labels:
 
-    clf = bayseg.BaySeg(coordinates_vector, feature_vectors, n_labels)
+    clf = bayseg.BaySeg(data_ndarray, n_labels)
     
 Then use the _fit()_ method to classify your data with your desired number of iterations:
 
-    clf.fit(n_iterations)
+    clf.fit(n_iter)
 
 ### References
 

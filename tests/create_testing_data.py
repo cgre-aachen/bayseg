@@ -33,4 +33,4 @@ def create_1d_data():
         elif label == 2:
             obs[i, :] = c3.rvs()
 
-    return coords, obs, latent_1d
+    return obs, latent_1d

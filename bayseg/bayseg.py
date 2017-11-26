@@ -40,15 +40,19 @@ class BaySeg:
         :param bic: (bool) for using Bayesian Information Criterion (Schwarz, 1978) for determining n_labels
         """
         # TODO: [DOCS] Main object description
-        # store physical coordinates, set dimensionality
-        # TODO: [GENERAL] Make extent and coordinates vector implicit
 
+        # store initial data
         self.data = data
+        # get shape for physical and feature dimensions
         self.shape = np.shape(data)
 
         # get number of features
         self.n_feat = self.shape[-1]
 
+        # ************************************************************************************************
+        # fetch dimensionality, coordinate and feature vector from input data
+
+        # 1D
         if len(self.shape) == 2:
             # 1d case
             self.dim = 1
@@ -59,6 +63,7 @@ class BaySeg:
             # feature vector
             self.obs = self.data
 
+        # 2D
         elif len(self.shape) == 3:
             # 2d case
             self.dim = 2
@@ -68,20 +73,16 @@ class BaySeg:
             self.coords = np.array([x.flatten(), y.flatten()]).T
 
             # feature vector
-            self.obs = np.array([self.data[:, :, f].flatten() for f in self.n_feat])
+            self.obs = np.array([self.data[:, :, f].flatten() for f in range(self.n_feat)]).T
 
+        # 3D
         elif len(self.shape) == 4:
             # 3d case
             raise Exception("3D segmentation not yet supported.")
+
+        # mismatch
         else:
             raise Exception("Data format appears to be wrong (neither 1-, 2- or 3-D).")
-
-        # self.extent = extent
-        # self.coords = coordinates
-        # self.dim = np.shape(coordinates)[1]
-        # store observations
-        # self.obs = observations
-        # self.n_feat = np.shape(observations)[1]
 
         # ************************************************************************************************
         # INIT STORAGE ARRAYS

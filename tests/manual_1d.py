@@ -15,7 +15,7 @@ clf = bayseg.BaySeg(obs, 3, beta_init=1)
 clf.fit(50, beta_jump_length=5, verbose=False)
 
 # *******************************************
-verbose = True
+verbose = False
 plot = True
 # *******************************************
 

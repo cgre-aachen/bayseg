@@ -27,6 +27,8 @@ import matplotlib.pyplot as plt  # 2d plotting
 from matplotlib import gridspec, rcParams  # plot arrangements
 from .colors import cmap, cmap_norm  # custom colormap
 plt.style.use('bmh')  # plot style
+from functools import partial
+from scipy.ndimage import generic_filter
 
 
 class BaySeg:
@@ -110,7 +112,8 @@ class BaySeg:
         # ************************************************************************************************
         # Initialize PRIOR distributions for beta, mu and covariance
         # BETA
-        beta_dim = [1, 4, 13]
+        # beta_dim = [1, 4, 13]
+        beta_dim = [1, 1, 1]
         self.prior_beta = norm(beta_init, np.eye(beta_dim[self.dim - 1]) * 100)
 
         # MU
@@ -176,7 +179,7 @@ class BaySeg:
         if verbose == "energy":
             print("likelihood energy:", energy_like)
         # 2 - calculate gibbs/mrf energy
-        gibbs_energy = self._calc_gibbs_energy_vect(self.labels[-1], self.betas[-1], self.n_labels)
+        gibbs_energy = self._calc_gibbs_energy_vect(self.labels[-1], self.betas[-1])
         if verbose == "energy":
             print("gibbs energy:", gibbs_energy)
         # 3 - self energy
@@ -194,21 +197,21 @@ class BaySeg:
 
         # make copy of previous labels
         new_labels = copy(self.labels[-1])
-        # draw new labels for 1 color only
-        color_f = self.colors[:, 0]
-        new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
 
-        # now recalculate gibbs energy and other energies from the mixture of old and new labels
-        gibbs_energy = self._calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
-        total_energy = energy_like + self_energy + gibbs_energy
-        labels_prob = _calc_labels_prob(total_energy, t)
+        for color_f in self.colors:
+            new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
 
-        # now draw new labels for the other color
-        color_f = self.colors[:, 1]
-        new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
+            # now recalculate gibbs energy and other energies from the mixture of old and new labels
+            gibbs_energy = self._calc_gibbs_energy_vect(new_labels, self.betas[-1])
+            total_energy = energy_like + self_energy + gibbs_energy
+            labels_prob = _calc_labels_prob(total_energy, t)
 
-        # recalculate gibbs energy
-        gibbs_energy = self._calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
+        # # now draw new labels for the other color
+        # color_f = self.colors[:, 1]
+        # new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
+        #
+        # # recalculate gibbs energy
+        # gibbs_energy = self._calc_gibbs_energy_vect(new_labels, self.betas[-1])
         # append labels to storage
         self.labels.append(new_labels)
 
@@ -312,7 +315,7 @@ class BaySeg:
         lmd_prev = self.calc_sum_log_mixture_density(comp_coef, self.mus[-1], self.covs[-1])
 
         # calculate gibbs energy with new labels and proposed beta
-        gibbs_energy_prop = self._calc_gibbs_energy_vect(new_labels, beta_prop, self.n_labels)
+        gibbs_energy_prop = self._calc_gibbs_energy_vect(new_labels, beta_prop)
         energy_for_comp_coef_prop = gibbs_energy_prop + self_energy
         comp_coef_prop = _calc_labels_prob(energy_for_comp_coef_prop, t)
 
@@ -374,7 +377,8 @@ class BaySeg:
         :return: Perturbed beta.
         """
         # create proposal covariance depending on physical dimensionality
-        dim = [1, 4, 13]
+        # dim = [1, 4, 13]
+        dim = [1, 1, 1]
         sigma_prop = np.eye(dim[self.dim - 1]) * beta_jump_length
         # draw from multivariate normal distribution and return
         # return np.exp(multivariate_normal(mean=np.log(beta_prev), cov=sigma_prop).rvs())
@@ -433,38 +437,53 @@ class BaySeg:
 
         return energy_like_labels
 
-    def _calc_gibbs_energy_vect(self, labels, beta, n_labels):
+    def _calc_gibbs_energy_vect(self, labels, beta):
         """
         Calculates Gibbs energy for each element using a penalty factor beta.
-        :param labels:
+        :param labels: flattened labels array!
         :param beta:
-        :param n_labels:
         :return: Gibbs energy matrix (n_obs times n_labels)
         """
 
         # ************************************************************************************************
         if self.dim == 1:
             # tile
-            lt = np.tile(labels, (n_labels, 1)).T
+            lt = np.tile(labels, (self.n_labels, 1)).T
 
-            ge = np.arange(n_labels)  # elemnts x labels
+            ge = np.arange(self.n_labels)  # elemnts x labels
             ge = np.tile(ge, (len(labels), 1))
             ge = ge.astype(float)
 
             # first row
-            top = np.expand_dims(np.not_equal(np.arange(n_labels), lt[1, :]) * beta, axis=0)
+            top = np.expand_dims(np.not_equal(np.arange(self.n_labels), lt[1, :]) * beta, axis=0)
             # mid
             mid = (np.not_equal(ge[1:-1, :], lt[:-2, :]).astype(float) + np.not_equal(ge[1:-1, :], lt[2:, :]).astype(
                 float)) * beta
             # last row
-            bot = np.expand_dims(np.not_equal(np.arange(n_labels), lt[-1, :]) * beta, axis=0)
+            bot = np.expand_dims(np.not_equal(np.arange(self.n_labels), lt[-1, :]) * beta, axis=0)
             # put back together and return gibbs energy
             return np.concatenate((top, mid, bot))
 
         # ************************************************************************************************
+
         elif self.dim == 2:
-            pass
-            # TODO: [2D] implementation of gibbs energy
+            l = labels.reshape(self.shape[:-1])
+            ge = np.tile(np.zeros_like(l).astype(float), (3, 1, 1))
+
+            if self.stamp == 4:
+                fp = np.array([[0, 1, 0],
+                                   [1, 0, 1],
+                                   [0, 1, 0]]).astype(bool)
+            else:
+                fp = np.array([[1, 1, 1],
+                                   [1, 0, 1],
+                                   [1, 1, 1]]).astype(bool)
+
+            for i in range(self.n_labels):
+                ge[i, :, :] = generic_filter(l, partial(gibbs_comp_f, value=i), footprint=fp, mode="constant",
+                                                           cval=-999) * beta
+
+            return ge.reshape(self.feat.shape[0], self.n_labels)
 
         # ************************************************************************************************
         elif self.dim == 3:
@@ -610,9 +629,6 @@ def draw_labels_vect(labels_prob):
     return np.count_nonzero(np.greater_equal(0, d), axis=1)
 
 
-
-
-
 def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length):
     """
     Proposes a perturbed n-dimensional covariance matrix based on an existing one and a
@@ -714,23 +730,28 @@ def _pseudocolor(coords_vector, extent, stamp=None):
             colors = 4
             # color image
             colored_image = np.tile(np.kron([[0, 1], [2, 3]] * int(extent[0] / 2), np.ones((1, 1))), int(extent[1] / 2))
+            colored_flat = colored_image.flatten()
+
             # initialize storage array
             ci = []
             for c in range(colors):
-                x, y = np.where(colored_image == c)
-                ci.append(np.stack((x, y), axis=1))
-            return np.array(ci)
+                x = np.where(colored_flat == c)[0]
+                ci.append(x)
+            return ci
+
         elif stamp == 4:
             # use 4 stamp, resulting in 2 colors (checkerboard)
             colors = 2
             # color image
             colored_image = np.tile(np.kron([[0, 1], [1, 0]] * int(extent[0] / 2), np.ones((1, 1))), int(extent[1] / 2))
+            colored_flat = colored_image.flatten()
+
             # initialize storage array
             ci = []
             for c in range(colors):
-                x, y = np.where(colored_image == c)
-                ci.append(np.stack((x, y), axis=1))
-            return np.array(ci)
+                x = np.where(colored_flat == c)[0]
+                ci.append(x)
+            return ci
         else:
             raise Exception(" In 2D space the stamp parameter needs to be either None (defaults to 8), 4 or 8.")
 
@@ -773,3 +794,8 @@ def bic(feat_vector, n_labels):
 
     plt.show()
     print("global minimum: ", n_comp[bic_min])
+
+
+def gibbs_comp_f(a, value):
+    a = a[a != -999.]
+    return np.count_nonzero(a != value)

@@ -451,8 +451,7 @@ class BaySeg:
             lt = np.tile(labels, (self.n_labels, 1)).T
 
             ge = np.arange(self.n_labels)  # elemnts x labels
-            ge = np.tile(ge, (len(labels), 1))
-            ge = ge.astype(float)
+            ge = np.tile(ge, (len(labels), 1)).astype(float)
 
             # first row
             top = np.expand_dims(np.not_equal(np.arange(self.n_labels), lt[1, :]) * beta, axis=0)
@@ -460,7 +459,7 @@ class BaySeg:
             mid = (np.not_equal(ge[1:-1, :], lt[:-2, :]).astype(float) + np.not_equal(ge[1:-1, :], lt[2:, :]).astype(
                 float)) * beta
             # last row
-            bot = np.expand_dims(np.not_equal(np.arange(self.n_labels), lt[-1, :]) * beta, axis=0)
+            bot = np.expand_dims(np.not_equal(np.arange(self.n_labels), lt[-2, :]) * beta, axis=0)
             # put back together and return gibbs energy
             return np.concatenate((top, mid, bot))
 

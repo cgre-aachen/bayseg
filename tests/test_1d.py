@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 import sys
 from .create_testing_data import create_1d_data
+
 sys.path.append("../")
 from bayseg import BaySeg
 
@@ -37,10 +38,20 @@ def test_1d_coordinates_vector(bayseg_1d):
 
 def test_1d_features_vector(bayseg_1d):
     """Test the shape of the features vector."""
-    assert np.shape(bayseg_1d.obs) == (500, 4)
+    assert np.shape(bayseg_1d.feat) == (500, 4)
 
 
 def test_1d_pseudocolors(bayseg_1d):
     """Test the pseudocoloring for 1d data."""
     c = bayseg_1d.colors == np.array([np.arange(0, 500, step=2), np.arange(1, 500, step=2)]).T
     assert c.all()
+
+
+def test_1d_gibbs_energy(bayseg_1d):
+    """Test gibbs energy calculation in 1d."""
+    labels = np.array([ 0, 1, 2, 2, 2, 1])
+    result = np.array([[1, 1, 2, 2, 2, 1],
+                       [0, 2, 1, 2, 1, 1],
+                       [1, 1, 1, 0, 1, 0]]).T.astype(float)
+    beta = 1.
+    assert (bayseg_1d._calc_gibbs_energy_vect(labels, beta) == result).all()

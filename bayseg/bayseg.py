@@ -1,5 +1,5 @@
 """
-BaySeg is a Python library for unsupervised clustering of n-dimensional datasets, designed for the segmentation of
+BaySeg is a Python library for unsupervised clustering of n-dimensional data sets, designed for the segmentation of
 one-, two- and three-dimensional data in the field of geological modeling and geophysics. The library is based on the
 algorithm developed by Wang et al., 2017 and combines Hidden Markov Random Fields with Gaussian Mixture Models in a
 Bayesian inference framework.
@@ -61,7 +61,7 @@ class BaySeg:
             self.coords = np.array([np.arange(self.shape[0])]).T
 
             # feature vector
-            self.obs = self.data
+            self.feat = self.data
 
         # 2D
         elif len(self.shape) == 3:
@@ -73,7 +73,7 @@ class BaySeg:
             self.coords = np.array([x.flatten(), y.flatten()]).T
 
             # feature vector
-            self.obs = np.array([self.data[:, :, f].flatten() for f in range(self.n_feat)]).T
+            self.feat = np.array([self.data[:, :, f].flatten() for f in range(self.n_feat)]).T
 
         # 3D
         elif len(self.shape) == 4:
@@ -95,13 +95,13 @@ class BaySeg:
         # INIT GAUSSIAN MIXTURE MODEL
         self.n_labels = n_labels
         self.gmm = mixture.GaussianMixture(n_components=n_labels, covariance_type="full")
-        self.gmm.fit(self.obs)
+        self.gmm.fit(self.feat)
         # do initial prediction based on fit and observations, store as first entry in labels
 
         # ************************************************************************************************
         # INIT LABELS, MU and COV based on GMM
         # TODO: [GENERAL] storage variables from lists to numpy ndarrays
-        self.labels = [self.gmm.predict(self.obs)]
+        self.labels = [self.gmm.predict(self.feat)]
         # INIT MU (mean from initial GMM)
         self.mus = [self.gmm.means_]
         # INIT COV (covariances from initial GMM)
@@ -176,7 +176,7 @@ class BaySeg:
         if verbose == "energy":
             print("likelihood energy:", energy_like)
         # 2 - calculate gibbs/mrf energy
-        gibbs_energy = _calc_gibbs_energy_vect(self.labels[-1], self.betas[-1], self.n_labels)
+        gibbs_energy = self._calc_gibbs_energy_vect(self.labels[-1], self.betas[-1], self.n_labels)
         if verbose == "energy":
             print("gibbs energy:", gibbs_energy)
         # 3 - self energy
@@ -199,7 +199,7 @@ class BaySeg:
         new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
 
         # now recalculate gibbs energy and other energies from the mixture of old and new labels
-        gibbs_energy = _calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
+        gibbs_energy = self._calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
         total_energy = energy_like + self_energy + gibbs_energy
         labels_prob = _calc_labels_prob(total_energy, t)
 
@@ -208,7 +208,7 @@ class BaySeg:
         new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
 
         # recalculate gibbs energy
-        gibbs_energy = _calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
+        gibbs_energy = self._calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
         # append labels to storage
         self.labels.append(new_labels)
 
@@ -312,7 +312,7 @@ class BaySeg:
         lmd_prev = self.calc_sum_log_mixture_density(comp_coef, self.mus[-1], self.covs[-1])
 
         # calculate gibbs energy with new labels and proposed beta
-        gibbs_energy_prop = _calc_gibbs_energy_vect(new_labels, beta_prop, self.n_labels)
+        gibbs_energy_prop = self._calc_gibbs_energy_vect(new_labels, beta_prop, self.n_labels)
         energy_for_comp_coef_prop = gibbs_energy_prop + self_energy
         comp_coef_prop = _calc_labels_prob(energy_for_comp_coef_prop, t)
 
@@ -405,7 +405,7 @@ class BaySeg:
         lmd = np.zeros((len(self.coords), self.n_labels))
 
         for l in range(self.n_labels):
-            draw = multivariate_normal(mean=mu[l, :], cov=cov[l, :, :]).pdf(self.obs)
+            draw = multivariate_normal(mean=mu[l, :], cov=cov[l, :, :]).pdf(self.feat)
             # print(np.shape(lmd[:,l]))
             multi = comp_coef[:, l] * draw
             lmd[:, l] = multi
@@ -425,15 +425,51 @@ class BaySeg:
 
         energy_like_labels = np.zeros((len(self.coords), self.n_labels))
 
+        # uses flattened features array
         for l in range(self.n_labels):
-            energy_like_labels[:, l] = np.einsum("...i,ji,...j", 0.5 * np.array([self.obs - mu[l, :]]),
+            energy_like_labels[:, l] = np.einsum("...i,ji,...j", 0.5 * np.array([self.feat - mu[l, :]]),
                                                  np.linalg.inv(cov[l, :, :]),
-                                                 np.array([self.obs - mu[l, :]])) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
-
-        # TODO: [2D] 2-dimensional calculation of energy likelihood labels
-        # TODO: [3D] 3-dimensional calculation of energy likelihood labels
+                                                 np.array([self.feat - mu[l, :]])) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
 
         return energy_like_labels
+
+    def _calc_gibbs_energy_vect(self, labels, beta, n_labels):
+        """
+        Calculates Gibbs energy for each element using a penalty factor beta.
+        :param labels:
+        :param beta:
+        :param n_labels:
+        :return: Gibbs energy matrix (n_obs times n_labels)
+        """
+
+        # ************************************************************************************************
+        if self.dim == 1:
+            # tile
+            lt = np.tile(labels, (n_labels, 1)).T
+
+            ge = np.arange(n_labels)  # elemnts x labels
+            ge = np.tile(ge, (len(labels), 1))
+            ge = ge.astype(float)
+
+            # first row
+            top = np.expand_dims(np.not_equal(np.arange(n_labels), lt[1, :]) * beta, axis=0)
+            # mid
+            mid = (np.not_equal(ge[1:-1, :], lt[:-2, :]).astype(float) + np.not_equal(ge[1:-1, :], lt[2:, :]).astype(
+                float)) * beta
+            # last row
+            bot = np.expand_dims(np.not_equal(np.arange(n_labels), lt[-1, :]) * beta, axis=0)
+            # put back together and return gibbs energy
+            return np.concatenate((top, mid, bot))
+
+        # ************************************************************************************************
+        elif self.dim == 2:
+            pass
+            # TODO: [2D] implementation of gibbs energy
+
+        # ************************************************************************************************
+        elif self.dim == 3:
+            # TODO: [3D] implementation of gibbs energy
+            pass
 
     def mcr(self, true_labels):
         """Compares classified with true labels for each iteration step (for synthetic data)
@@ -574,34 +610,7 @@ def draw_labels_vect(labels_prob):
     return np.count_nonzero(np.greater_equal(0, d), axis=1)
 
 
-def _calc_gibbs_energy_vect(labels, beta, n_labels):
-    """
-    Calculates Gibbs energy for each element using a penalty factor beta.
-    :param labels:
-    :param beta:
-    :param n_labels:
-    :return: Gibbs energy matrix (n_obs times n_labels)
-    """
 
-    # TODO: [2D] implementation of gibbs energy
-    # TODO: [3D] implementation of gibbs energy
-
-    # tile
-    lt = np.tile(labels, (n_labels, 1)).T
-
-    ge = np.arange(n_labels)  # elemnts x labels
-    ge = np.tile(ge, (len(labels), 1))
-    ge = ge.astype(float)
-
-    # first row
-    top = np.expand_dims(np.not_equal(np.arange(n_labels), lt[1, :]) * beta, axis=0)
-    # mid
-    mid = (np.not_equal(ge[1:-1, :], lt[:-2, :]).astype(float) + np.not_equal(ge[1:-1, :], lt[2:, :]).astype(
-        float)) * beta
-    # last row
-    bot = np.expand_dims(np.not_equal(np.arange(n_labels), lt[-1, :]) * beta, axis=0)
-    # put back together and return gibbs energy
-    return np.concatenate((top, mid, bot))
 
 
 def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length):

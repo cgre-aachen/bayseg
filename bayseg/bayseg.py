@@ -27,8 +27,9 @@ import matplotlib.pyplot as plt  # 2d plotting
 from matplotlib import gridspec, rcParams  # plot arrangements
 from .colors import cmap, cmap_norm  # custom colormap
 plt.style.use('bmh')  # plot style
-from functools import partial
-from scipy.ndimage import generic_filter
+# from functools import partial
+# from scipy.ndimage import generic_filter
+from .ie import *
 
 
 class BaySeg:
@@ -75,7 +76,7 @@ class BaySeg:
             self.coords = np.array([x.flatten(), y.flatten()]).T
 
             # feature vector
-            self.feat = np.array([self.data[:, :, f].flatten() for f in range(self.n_feat)]).T
+            self.feat = np.array([self.data[:, :, f].reshape(self.shape[0] * self.shape[1]) for f in range(self.n_feat)]).T
 
         # 3D
         elif len(self.shape) == 4:
@@ -206,13 +207,6 @@ class BaySeg:
             total_energy = energy_like + self_energy + gibbs_energy
             labels_prob = _calc_labels_prob(total_energy, t)
 
-        # # now draw new labels for the other color
-        # color_f = self.colors[:, 1]
-        # new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
-        #
-        # # recalculate gibbs energy
-        # gibbs_energy = self._calc_gibbs_energy_vect(new_labels, self.betas[-1])
-        # append labels to storage
         self.labels.append(new_labels)
 
         # ************************************************************************************************
@@ -624,12 +618,13 @@ class BaySeg:
 
         plt.show()
 
-    def diagnostics_plot(self, true_labels=None):
+    def diagnostics_plot(self, true_labels=None, ie_range=None):
         """
         Diagnostic plots for analyzing convergence: beta trace, correlation coefficient trace, labels trace and MCR.
         :param true_labels: If given calculates and plots MCR
         :return: Fancy figures
         """
+
         if true_labels is not None:
             fig = plt.figure(figsize=(15, 10))
             gs = gridspec.GridSpec(4, 2)
@@ -653,26 +648,51 @@ class BaySeg:
         ax2.legend()
         ax2.set_xlabel("Iterations")
 
-        # plot labels
-        ax3 = plt.subplot(gs[1, :])
-        ax3.imshow(np.array(self.labels), cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
-        ax3.set_ylabel("Iterations")
-        ax3.set_title("Labels")
-        ax3.grid(False)  # disable grid
+        # 1D
+        if self.dim == 1:
+            # PLOT LABELS
+            ax3 = plt.subplot(gs[1, :])
+            ax3.imshow(np.array(self.labels), cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
+            ax3.set_ylabel("Iterations")
+            ax3.set_title("Labels")
+            ax3.grid(False)  # disable grid
 
-        if true_labels is not None:
-            # plot the latent field
-            ax4 = plt.subplot(gs[2, :])
-            ax4.imshow(np.tile(np.expand_dims(true_labels, axis=1), 50).T,
+            if true_labels is not None:
+                # plot the latent field
+                ax4 = plt.subplot(gs[2, :])
+                ax4.imshow(np.tile(np.expand_dims(true_labels, axis=1), 50).T,
+                           cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
+                ax4.set_title("Latent field")
+                ax4.grid(False)
+
+                # plot the mcr
+                ax5 = plt.subplot(gs[3, :])
+                ax5.plot(self.mcr(true_labels), color="black", linewidth=1)
+                ax5.set_ylabel("MCR")
+                ax5.set_xlabel("Iterations")
+
+        # 2D
+        elif self.dim == 2:
+            # PLOT LABELS
+            ax3 = plt.subplot(gs[1, 0])
+            ax3.set_title("Labels (last iteration)")
+            ax3.imshow(np.array(self.labels[-1].reshape(self.shape[0], self.shape[1])),
                        cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
-            ax4.set_title("Latent field")
-            ax4.grid(False)
 
-            # plot the mcr
-            ax5 = plt.subplot(gs[3, :])
-            ax5.plot(self.mcr(true_labels), color="black", linewidth=1)
-            ax5.set_ylabel("MCR")
-            ax5.set_xlabel("Iterations")
+            # PLOT INFORMATION ENTROPY
+            if ie_range is None:  # use all
+                a = 0
+                b = -1
+            else:  # use given range
+                a = ie_range[0]
+                b = ie_range[1]
+
+            ie = calcualte_ie_masked(compute_prob_of_labels(self.labels[a:b]))  # calculate ie
+            ax4 = plt.subplot(gs[1, 1])
+            ax4.set_title("Information Entropy")
+            iep = ax4.imshow(ie.reshape(self.shape[0], self.shape[1]),
+                       cmap="viridis", aspect='auto', interpolation='nearest')
+            plt.colorbar(iep)
 
         plt.show()
 
@@ -794,7 +814,7 @@ def pseudocolor(coords_vector, extent, stamp=None):
             colors = 4
             # color image
             colored_image = np.tile(np.kron([[0, 1], [2, 3]] * int(extent[0] / 2), np.ones((1, 1))), int(extent[1] / 2))
-            colored_flat = colored_image.flatten()
+            colored_flat = colored_image.reshape(extent[0] * extent[1])
 
             # initialize storage array
             ci = []
@@ -808,7 +828,7 @@ def pseudocolor(coords_vector, extent, stamp=None):
             colors = 2
             # color image
             colored_image = np.tile(np.kron([[0, 1], [1, 0]] * int(extent[0] / 2), np.ones((1, 1))), int(extent[1] / 2))
-            colored_flat = colored_image.flatten()
+            colored_flat = colored_image.reshape(extent[0] * extent[1])
 
             # initialize storage array
             ci = []

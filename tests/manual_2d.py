@@ -7,7 +7,7 @@ sys.path.append("../")
 import bayseg
 
 create_testing_data = importlib.import_module('create_testing_data')
-observations, latent_2d = create_testing_data.create_2d_data()
+observations, latent_2d = create_testing_data.create_2d_data(50, 50)
 
 print(observations.shape)
 

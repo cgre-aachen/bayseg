@@ -5,7 +5,6 @@ import sys
 sys.path.append("../")
 from bayseg import BaySeg
 
-
 @pytest.fixture
 def bayseg_2d_4s():
     """Create a 2d 4-stamp """
@@ -43,3 +42,5 @@ def test_2d_gibbs_energy(bayseg_2d_4s):
                      [2., 2., 2., 1.]]])
 
     assert (bayseg_2d_4s._calc_gibbs_energy_vect(labels.flatten(), beta) == sol.reshape(16, 3)).all()
+
+

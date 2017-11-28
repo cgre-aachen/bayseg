@@ -179,7 +179,7 @@ class BaySeg:
         if verbose == "energy":
             print("likelihood energy:", energy_like)
         # 2 - calculate gibbs/mrf energy
-        gibbs_energy = self._calc_gibbs_energy_vect(self.labels[-1], self.betas[-1])
+        gibbs_energy = self._calc_gibbs_energy_vect(self.labels[-1], self.betas[-1], verbose=verbose)
         if verbose == "energy":
             print("gibbs energy:", gibbs_energy)
         # 3 - self energy
@@ -202,7 +202,7 @@ class BaySeg:
             new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
 
             # now recalculate gibbs energy and other energies from the mixture of old and new labels
-            gibbs_energy = self._calc_gibbs_energy_vect(new_labels, self.betas[-1])
+            gibbs_energy = self._calc_gibbs_energy_vect(new_labels, self.betas[-1], verbose=verbose)
             total_energy = energy_like + self_energy + gibbs_energy
             labels_prob = _calc_labels_prob(total_energy, t)
 
@@ -315,7 +315,7 @@ class BaySeg:
         lmd_prev = self.calc_sum_log_mixture_density(comp_coef, self.mus[-1], self.covs[-1])
 
         # calculate gibbs energy with new labels and proposed beta
-        gibbs_energy_prop = self._calc_gibbs_energy_vect(new_labels, beta_prop)
+        gibbs_energy_prop = self._calc_gibbs_energy_vect(self.labels[-1], beta_prop, verbose=verbose)
         energy_for_comp_coef_prop = gibbs_energy_prop + self_energy
         comp_coef_prop = _calc_labels_prob(energy_for_comp_coef_prop, t)
 
@@ -437,7 +437,7 @@ class BaySeg:
 
         return energy_like_labels
 
-    def _calc_gibbs_energy_vect(self, labels, beta):
+    def _calc_gibbs_energy_vect(self, labels, beta, verbose=None):
         """
         Calculates Gibbs energy for each element using a penalty factor beta.
         :param labels: flattened labels array!
@@ -466,23 +466,88 @@ class BaySeg:
         # ************************************************************************************************
 
         elif self.dim == 2:
-            l = labels.reshape(self.shape[:-1])
-            ge = np.tile(np.zeros_like(l).astype(float), (3, 1, 1))
+            # l = labels.reshape(self.shape[:-1])
+            # ge = np.tile(np.zeros_like(l).astype(float), (3, 1, 1))
+            #
+            # if self.stamp == 4:
+            #     fp = np.array([[0, 1, 0],
+            #                    [1, 0, 1],
+            #                    [0, 1, 0]]).astype(bool)
+            # else:
+            #     fp = np.array([[1, 1, 1],
+            #                    [1, 0, 1],
+            #                    [1, 1, 1]]).astype(bool)
+            #
+            # for i in range(self.n_labels):
+            #     ge[i, :, :] = generic_filter(l, partial(gibbs_comp_f, value=i), footprint=fp, mode="constant",
+            #                                                cval=-999) * beta
+            #
+            # if verbose == "energy":
+            #     print("\n")
+            #     print("GIBBS ENERGY")
+            #     print(ge)
+            #
+            # return ge.reshape(self.feat.shape[0], self.n_labels)
+            labels = labels.reshape(self.shape[0], self.shape[1])
 
-            if self.stamp == 4:
-                fp = np.array([[0, 1, 0],
-                               [1, 0, 1],
-                               [0, 1, 0]]).astype(bool)
-            else:
-                fp = np.array([[1, 1, 1],
-                               [1, 0, 1],
-                               [1, 1, 1]]).astype(bool)
+            ge = np.tile(np.zeros_like(labels).astype(float), (3, 1, 1))
+            # print(gibbs_energy)
+
+            # comparison array
+            comp = np.tile(np.zeros_like(labels), (3, 1, 1)).astype(float)
 
             for i in range(self.n_labels):
-                ge[i, :, :] = generic_filter(l, partial(gibbs_comp_f, value=i), footprint=fp, mode="constant",
-                                                           cval=-999) * beta
+                comp[i, :, :] = i
 
-            return ge.reshape(self.feat.shape[0], self.n_labels)
+            # above
+            ge[:, 1:-1, 1:-1] = (np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 1:-1]).astype(float)
+                                 + np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 1:-1]).astype(float)
+                                 + np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, :-2]).astype(float)
+                                 + np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, 2:]).astype(float)) * beta
+
+            # left column
+            # right
+            ge[:, :, 0] += np.not_equal(comp[:, :, 0], labels[:, 1]).astype(float) * beta
+            # above
+            ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 1]).astype(float) * beta
+            # below
+            ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 1]).astype(float) * beta
+
+            # right column
+            # left
+            ge[:, :, -1] += np.not_equal(comp[:, :, -1], labels[:, -2]).astype(float) * beta
+            # above
+            ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -1]).astype(float) * beta
+            # below
+            ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -1]).astype(float) * beta
+
+            # top row
+            # below
+            ge[:, 0, :] += np.not_equal(comp[:, 0, :], labels[1, :]).astype(float) * beta
+            # right
+            ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[0, 1:]).astype(float) * beta
+            # left
+            ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[0, :-1]).astype(float) * beta
+
+            # bottom row
+            # above
+            ge[:, -1, :] += np.not_equal(comp[:, -1, :], labels[-2, :]).astype(float) * beta
+            # right
+            ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-1, 1:]).astype(float) * beta
+            # left
+            ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-1, :-1]).astype(float) * beta
+
+            # corners redo
+            # up left
+            ge[:, 0, 0] = (np.not_equal(comp[:, 0, 0], labels[1, 0]).astype(float) + np.not_equal(comp[:, 0, 0], labels[0, 1]).astype(float)) * beta
+            # low left
+            ge[:, -1, 0] = (np.not_equal(comp[:, -1, 0], labels[-1, 1]).astype(float) + np.not_equal(comp[:, -1, 0], labels[-2, 0]).astype(float)) * beta
+            # up right
+            ge[:, 0, -1] = (np.not_equal(comp[:, 0, -1], labels[1, -1]).astype(float) + np.not_equal(comp[:, 0, -1], labels[0, -2]).astype(float)) * beta
+            # low right
+            ge[:, -1, -1] = (np.not_equal(comp[:, -1, -1], labels[-2, -1]).astype(float) + np.not_equal(comp[:, -1, -1], labels[-1, -2]).astype(float)) * beta
+
+            return ge.reshape(self.shape[0] * self.shape[1], self.n_labels)
 
         # ************************************************************************************************
         elif self.dim == 3:

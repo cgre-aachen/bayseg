@@ -141,7 +141,7 @@ class BaySeg:
         self.colors = pseudocolor(self.coords, self.shape[:-1], self.stamp)
 
     def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005,
-            theta_jump_length=0.0005, t=1., verbose=False):
+            theta_jump_length=0.0005, t=1., verbose=False, fix_beta=False):
         """
 
         :param n:
@@ -154,9 +154,10 @@ class BaySeg:
         :return:
         """
         for g in tqdm.trange(n):
-            self.gibbs_sample(t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length, verbose)
+            self.gibbs_sample(t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length,
+                              verbose, fix_beta)
 
-    def gibbs_sample(self, t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length, verbose):
+    def gibbs_sample(self, t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length, verbose, fix_beta):
         """
         Gibbs sampler. This is the main function of the algorithm and needs an in-depth description
 
@@ -301,34 +302,37 @@ class BaySeg:
         # append cov and mu
         self.covs.append(cov_next)
 
-        # ************************************************************************************************
-        # UPDATE BETA
-        lp_beta_prev = self.log_prior_density_beta(self.betas[-1])
-        lp_beta_prop = self.log_prior_density_beta(beta_prop)
+        if not fix_beta:
+            # ************************************************************************************************
+            # UPDATE BETA
+            lp_beta_prev = self.log_prior_density_beta(self.betas[-1])
+            lp_beta_prop = self.log_prior_density_beta(beta_prop)
 
-        lmd_prev = self.calc_sum_log_mixture_density(comp_coef, self.mus[-1], self.covs[-1])
+            lmd_prev = self.calc_sum_log_mixture_density(comp_coef, self.mus[-1], self.covs[-1])
 
-        # calculate gibbs energy with new labels and proposed beta
-        gibbs_energy_prop = self._calc_gibbs_energy_vect(self.labels[-1], beta_prop, verbose=verbose)
-        energy_for_comp_coef_prop = gibbs_energy_prop + self_energy
-        comp_coef_prop = _calc_labels_prob(energy_for_comp_coef_prop, t)
+            # calculate gibbs energy with new labels and proposed beta
+            gibbs_energy_prop = self._calc_gibbs_energy_vect(self.labels[-1], beta_prop, verbose=verbose)
+            energy_for_comp_coef_prop = gibbs_energy_prop + self_energy
+            comp_coef_prop = _calc_labels_prob(energy_for_comp_coef_prop, t)
 
-        lmd_prop = self.calc_sum_log_mixture_density(comp_coef_prop, self.mus[-1], self.covs[-1])
-        # print("lmd_prev:", lmd_prev)
-        # print("lp_beta_prev:", lp_beta_prev)
-        log_target_prev = lmd_prev + lp_beta_prev
-        # print("lmd_prop:", lmd_prop)
-        # print("lp_beta_prop:", lp_beta_prop)
-        log_target_prop = lmd_prop + lp_beta_prop
+            lmd_prop = self.calc_sum_log_mixture_density(comp_coef_prop, self.mus[-1], self.covs[-1])
+            # print("lmd_prev:", lmd_prev)
+            # print("lp_beta_prev:", lp_beta_prev)
+            log_target_prev = lmd_prev + lp_beta_prev
+            # print("lmd_prop:", lmd_prop)
+            # print("lp_beta_prop:", lp_beta_prop)
+            log_target_prop = lmd_prop + lp_beta_prop
 
-        acc_ratio = np.exp(log_target_prop - log_target_prev)
-        # print("beta acc_ratio:", acc_ratio)
+            acc_ratio = np.exp(log_target_prop - log_target_prev)
+            # print("beta acc_ratio:", acc_ratio)
 
-        if verbose:
-            print("BETA acceptance ratio:", acc_ratio)
+            if verbose:
+                print("BETA acceptance ratio:", acc_ratio)
 
-        if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
-            self.betas.append(beta_prop)
+            if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
+                self.betas.append(beta_prop)
+            else:
+                self.betas.append(self.betas[-1])
         else:
             self.betas.append(self.betas[-1])
         # ************************************************************************************************

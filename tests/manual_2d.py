@@ -11,7 +11,7 @@ observations, latent_2d = create_testing_data.create_2d_data(50, 50)
 
 print(observations.shape)
 
-plot = False
+plot = True
 
 if plot:
     fig, ax = plt.subplots(ncols=5, figsize=(15, 7))
@@ -31,7 +31,7 @@ if plot:
 
 clf = bayseg.BaySeg(observations, 3, beta_init=1)
 
-clf.fit(100, beta_jump_length=0.01, verbose=False)
+clf.fit(1, beta_jump_length=0.01, verbose=False)
 
 clf.diagnostics_plot()
 

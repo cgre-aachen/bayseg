@@ -1,5 +1,5 @@
 """
-BaySeg is a Python library for unsupervised clustering of n-dimensional datasets, designed for the segmentation of
+BaySeg is a Python library for unsupervised clustering of n-dimensional data sets, designed for the segmentation of
 one-, two- and three-dimensional data in the field of geological modeling and geophysics. The library is based on the
 algorithm developed by Wang et al., 2017 and combines Hidden Markov Random Fields with Gaussian Mixture Models in a
 Bayesian inference framework.
@@ -17,20 +17,23 @@ BaySeg is licensed under the GNU Lesser General Public License v3.0
 ************************************************************************************************
 """
 
-import numpy as np
-from sklearn import mixture
-from scipy.stats import multivariate_normal, norm
+import numpy as np  # scientific computing library
+from sklearn import mixture  # gaussian mixture model
+from scipy.stats import multivariate_normal, norm  # normal distributions
 from copy import copy
 from itertools import combinations
 import tqdm  # smart-ish progress bar
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt  # 2d plotting
 from matplotlib import gridspec, rcParams  # plot arrangements
-from .colors import cmap, cmap_norm
-plt.style.use('bmh')
+from .colors import cmap, cmap_norm  # custom colormap
+plt.style.use('bmh')  # plot style
+# from functools import partial
+# from scipy.ndimage import generic_filter
+from .ie import *
 
 
 class BaySeg:
-    def __init__(self, coordinates, observations, n_labels, beta_init=1):
+    def __init__(self, data, n_labels, beta_init=1, stamp=None):
         """
 
         :param coordinates: Physical coordinate system as numpy ndarray (n_coord, 1)
@@ -39,13 +42,50 @@ class BaySeg:
         :param beta_init: Initial beta value (float)
         :param bic: (bool) for using Bayesian Information Criterion (Schwarz, 1978) for determining n_labels
         """
-        # TODO: Main object description
-        # store physical coordinates, set dimensionality
-        self.coords = coordinates
-        self.dim = np.shape(coordinates)[1]
-        # store observations
-        self.obs = observations
-        self.n_feat = np.shape(observations)[1]
+        # TODO: [DOCS] Main object description
+
+        # store initial data
+        self.data = data
+        # get shape for physical and feature dimensions
+        self.shape = np.shape(data)
+
+        # get number of features
+        self.n_feat = self.shape[-1]
+
+        # ************************************************************************************************
+        # fetch dimensionality, coordinate and feature vector from input data
+
+        # 1D
+        if len(self.shape) == 2:
+            # 1d case
+            self.dim = 1
+
+            # create coordinate vector
+            self.coords = np.array([np.arange(self.shape[0])]).T
+
+            # feature vector
+            self.feat = self.data
+
+        # 2D
+        elif len(self.shape) == 3:
+            # 2d case
+            self.dim = 2
+
+            # create coordinate vector
+            x, y = np.indices(self.shape[:-1])
+            self.coords = np.array([x.flatten(), y.flatten()]).T
+
+            # feature vector
+            self.feat = np.array([self.data[:, :, f].reshape(self.shape[0] * self.shape[1]) for f in range(self.n_feat)]).T
+
+        # 3D
+        elif len(self.shape) == 4:
+            # 3d case
+            raise Exception("3D segmentation not yet supported.")
+
+        # mismatch
+        else:
+            raise Exception("Data format appears to be wrong (neither 1-, 2- or 3-D).")
 
         # ************************************************************************************************
         # INIT STORAGE ARRAYS
@@ -58,13 +98,13 @@ class BaySeg:
         # INIT GAUSSIAN MIXTURE MODEL
         self.n_labels = n_labels
         self.gmm = mixture.GaussianMixture(n_components=n_labels, covariance_type="full")
-        self.gmm.fit(self.obs)
+        self.gmm.fit(self.feat)
         # do initial prediction based on fit and observations, store as first entry in labels
 
         # ************************************************************************************************
         # INIT LABELS, MU and COV based on GMM
-        # TODO: storage variables from lists to numpy ndarrays
-        self.labels = [self.gmm.predict(self.obs)]
+        # TODO: [GENERAL] storage variables from lists to numpy ndarrays
+        self.labels = [self.gmm.predict(self.feat)]
         # INIT MU (mean from initial GMM)
         self.mus = [self.gmm.means_]
         # INIT COV (covariances from initial GMM)
@@ -73,7 +113,8 @@ class BaySeg:
         # ************************************************************************************************
         # Initialize PRIOR distributions for beta, mu and covariance
         # BETA
-        beta_dim = [1, 4, 13]
+        # beta_dim = [1, 4, 13]
+        beta_dim = [1, 1, 1]
         self.prior_beta = norm(beta_init, np.eye(beta_dim[self.dim - 1]) * 100)
 
         # MU
@@ -96,10 +137,11 @@ class BaySeg:
         # ************************************************************************************************
 
         # GRAPH COLORING
-        self.colors = _pseudocolor(self.coords)
+        self.stamp = stamp
+        self.colors = pseudocolor(self.coords, self.shape[:-1], self.stamp)
 
     def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005,
-            theta_jump_length=0.0005, t=1., verbose=False):
+            theta_jump_length=0.0005, t=1., verbose=False, fix_beta=False):
         """
 
         :param n:
@@ -112,9 +154,10 @@ class BaySeg:
         :return:
         """
         for g in tqdm.trange(n):
-            self.gibbs_sample(t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length, verbose)
+            self.gibbs_sample(t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length,
+                              verbose, fix_beta)
 
-    def gibbs_sample(self, t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length, verbose):
+    def gibbs_sample(self, t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length, verbose, fix_beta):
         """
         Gibbs sampler. This is the main function of the algorithm and needs an in-depth description
 
@@ -128,7 +171,7 @@ class BaySeg:
         The function updates directly on the object variables and appends new draws of labels and
         parameters to their respective storages.
         """
-        # TODO: In-depth description of the gibbs sampling function
+        # TODO: [GENERAL] In-depth description of the gibbs sampling function
 
         # ************************************************
         # CALCULATE TOTAL ENERGY
@@ -138,7 +181,7 @@ class BaySeg:
         if verbose == "energy":
             print("likelihood energy:", energy_like)
         # 2 - calculate gibbs/mrf energy
-        gibbs_energy = _calc_gibbs_energy_vect(self.labels[-1], self.betas[-1], self.n_labels)
+        gibbs_energy = self._calc_gibbs_energy_vect(self.labels[-1], self.betas[-1], verbose=verbose)
         if verbose == "energy":
             print("gibbs energy:", gibbs_energy)
         # 3 - self energy
@@ -156,22 +199,15 @@ class BaySeg:
 
         # make copy of previous labels
         new_labels = copy(self.labels[-1])
-        # draw new labels for 1 color only
-        color_f = self.colors[:, 0]
-        new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
 
-        # now recalculate gibbs energy and other energies from the mixture of old and new labels
-        gibbs_energy = _calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
-        total_energy = energy_like + self_energy + gibbs_energy
-        labels_prob = _calc_labels_prob(total_energy, t)
+        for color_f in self.colors:
+            new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
 
-        # now draw new labels for the other color
-        color_f = self.colors[:, 1]
-        new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
+            # now recalculate gibbs energy and other energies from the mixture of old and new labels
+            gibbs_energy = self._calc_gibbs_energy_vect(new_labels, self.betas[-1], verbose=verbose)
+            total_energy = energy_like + self_energy + gibbs_energy
+            labels_prob = _calc_labels_prob(total_energy, t)
 
-        # recalculate gibbs energy
-        gibbs_energy = _calc_gibbs_energy_vect(new_labels, self.betas[-1], self.n_labels)
-        # append labels to storage
         self.labels.append(new_labels)
 
         # ************************************************************************************************
@@ -266,34 +302,37 @@ class BaySeg:
         # append cov and mu
         self.covs.append(cov_next)
 
-        # ************************************************************************************************
-        # UPDATE BETA
-        lp_beta_prev = self.log_prior_density_beta(self.betas[-1])
-        lp_beta_prop = self.log_prior_density_beta(beta_prop)
+        if not fix_beta:
+            # ************************************************************************************************
+            # UPDATE BETA
+            lp_beta_prev = self.log_prior_density_beta(self.betas[-1])
+            lp_beta_prop = self.log_prior_density_beta(beta_prop)
 
-        lmd_prev = self.calc_sum_log_mixture_density(comp_coef, self.mus[-1], self.covs[-1])
+            lmd_prev = self.calc_sum_log_mixture_density(comp_coef, self.mus[-1], self.covs[-1])
 
-        # calculate gibbs energy with new labels and proposed beta
-        gibbs_energy_prop = _calc_gibbs_energy_vect(new_labels, beta_prop, self.n_labels)
-        energy_for_comp_coef_prop = gibbs_energy_prop + self_energy
-        comp_coef_prop = _calc_labels_prob(energy_for_comp_coef_prop, t)
+            # calculate gibbs energy with new labels and proposed beta
+            gibbs_energy_prop = self._calc_gibbs_energy_vect(self.labels[-1], beta_prop, verbose=verbose)
+            energy_for_comp_coef_prop = gibbs_energy_prop + self_energy
+            comp_coef_prop = _calc_labels_prob(energy_for_comp_coef_prop, t)
 
-        lmd_prop = self.calc_sum_log_mixture_density(comp_coef_prop, self.mus[-1], self.covs[-1])
-        # print("lmd_prev:", lmd_prev)
-        # print("lp_beta_prev:", lp_beta_prev)
-        log_target_prev = lmd_prev + lp_beta_prev
-        # print("lmd_prop:", lmd_prop)
-        # print("lp_beta_prop:", lp_beta_prop)
-        log_target_prop = lmd_prop + lp_beta_prop
+            lmd_prop = self.calc_sum_log_mixture_density(comp_coef_prop, self.mus[-1], self.covs[-1])
+            # print("lmd_prev:", lmd_prev)
+            # print("lp_beta_prev:", lp_beta_prev)
+            log_target_prev = lmd_prev + lp_beta_prev
+            # print("lmd_prop:", lmd_prop)
+            # print("lp_beta_prop:", lp_beta_prop)
+            log_target_prop = lmd_prop + lp_beta_prop
 
-        acc_ratio = np.exp(log_target_prop - log_target_prev)
-        # print("beta acc_ratio:", acc_ratio)
+            acc_ratio = np.exp(log_target_prop - log_target_prev)
+            # print("beta acc_ratio:", acc_ratio)
 
-        if verbose:
-            print("BETA acceptance ratio:", acc_ratio)
+            if verbose:
+                print("BETA acceptance ratio:", acc_ratio)
 
-        if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
-            self.betas.append(beta_prop)
+            if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
+                self.betas.append(beta_prop)
+            else:
+                self.betas.append(self.betas[-1])
         else:
             self.betas.append(self.betas[-1])
         # ************************************************************************************************
@@ -336,7 +375,8 @@ class BaySeg:
         :return: Perturbed beta.
         """
         # create proposal covariance depending on physical dimensionality
-        dim = [1, 4, 13]
+        # dim = [1, 4, 13]
+        dim = [1, 1, 1]
         sigma_prop = np.eye(dim[self.dim - 1]) * beta_jump_length
         # draw from multivariate normal distribution and return
         # return np.exp(multivariate_normal(mean=np.log(beta_prev), cov=sigma_prop).rvs())
@@ -367,7 +407,7 @@ class BaySeg:
         lmd = np.zeros((len(self.coords), self.n_labels))
 
         for l in range(self.n_labels):
-            draw = multivariate_normal(mean=mu[l, :], cov=cov[l, :, :]).pdf(self.obs)
+            draw = multivariate_normal(mean=mu[l, :], cov=cov[l, :, :]).pdf(self.feat)
             # print(np.shape(lmd[:,l]))
             multi = comp_coef[:, l] * draw
             lmd[:, l] = multi
@@ -387,23 +427,138 @@ class BaySeg:
 
         energy_like_labels = np.zeros((len(self.coords), self.n_labels))
 
+        # uses flattened features array
         for l in range(self.n_labels):
-            energy_like_labels[:, l] = np.einsum("...i,ji,...j", 0.5 * np.array([self.obs - mu[l, :]]),
+            energy_like_labels[:, l] = np.einsum("...i,ji,...j", 0.5 * np.array([self.feat - mu[l, :]]),
                                                  np.linalg.inv(cov[l, :, :]),
-                                                 np.array([self.obs - mu[l, :]])) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
-
-        # TODO: 2-dimensional calculation of energy likelihood labels
-        # TODO: 3-dimensional calculation of energy likelihood labels
+                                                 np.array([self.feat - mu[l, :]])) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
 
         return energy_like_labels
+
+    def _calc_gibbs_energy_vect(self, labels, beta, verbose=None):
+        """
+        Calculates Gibbs energy for each element using a penalty factor beta.
+        :param labels: flattened labels array!
+        :param beta:
+        :return: Gibbs energy matrix (n_obs times n_labels)
+        """
+
+        # ************************************************************************************************
+        if self.dim == 1:
+            # tile
+            lt = np.tile(labels, (self.n_labels, 1)).T
+
+            ge = np.arange(self.n_labels)  # elemnts x labels
+            ge = np.tile(ge, (len(labels), 1)).astype(float)
+
+            # first row
+            top = np.expand_dims(np.not_equal(np.arange(self.n_labels), lt[1, :]) * beta, axis=0)
+            # mid
+            mid = (np.not_equal(ge[1:-1, :], lt[:-2, :]).astype(float) + np.not_equal(ge[1:-1, :], lt[2:, :]).astype(
+                float)) * beta
+            # last row
+            bot = np.expand_dims(np.not_equal(np.arange(self.n_labels), lt[-2, :]) * beta, axis=0)
+            # put back together and return gibbs energy
+            return np.concatenate((top, mid, bot))
+
+        # ************************************************************************************************
+
+        elif self.dim == 2:
+            # l = labels.reshape(self.shape[:-1])
+            # ge = np.tile(np.zeros_like(l).astype(float), (3, 1, 1))
+            #
+            # if self.stamp == 4:
+            #     fp = np.array([[0, 1, 0],
+            #                    [1, 0, 1],
+            #                    [0, 1, 0]]).astype(bool)
+            # else:
+            #     fp = np.array([[1, 1, 1],
+            #                    [1, 0, 1],
+            #                    [1, 1, 1]]).astype(bool)
+            #
+            # for i in range(self.n_labels):
+            #     ge[i, :, :] = generic_filter(l, partial(gibbs_comp_f, value=i), footprint=fp, mode="constant",
+            #                                                cval=-999) * beta
+            #
+            # if verbose == "energy":
+            #     print("\n")
+            #     print("GIBBS ENERGY")
+            #     print(ge)
+            #
+            # return ge.reshape(self.feat.shape[0], self.n_labels)
+            labels = labels.reshape(self.shape[0], self.shape[1])
+
+            ge = np.tile(np.zeros_like(labels).astype(float), (3, 1, 1))
+            # print(gibbs_energy)
+
+            # comparison array
+            comp = np.tile(np.zeros_like(labels), (3, 1, 1)).astype(float)
+
+            for i in range(self.n_labels):
+                comp[i, :, :] = i
+
+            # above
+            ge[:, 1:-1, 1:-1] = (np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 1:-1]).astype(float)
+                                 + np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 1:-1]).astype(float)
+                                 + np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, :-2]).astype(float)
+                                 + np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, 2:]).astype(float)) * beta
+
+            # left column
+            # right
+            ge[:, :, 0] += np.not_equal(comp[:, :, 0], labels[:, 1]).astype(float) * beta
+            # above
+            ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 1]).astype(float) * beta
+            # below
+            ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 1]).astype(float) * beta
+
+            # right column
+            # left
+            ge[:, :, -1] += np.not_equal(comp[:, :, -1], labels[:, -2]).astype(float) * beta
+            # above
+            ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -1]).astype(float) * beta
+            # below
+            ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -1]).astype(float) * beta
+
+            # top row
+            # below
+            ge[:, 0, :] += np.not_equal(comp[:, 0, :], labels[1, :]).astype(float) * beta
+            # right
+            ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[0, 1:]).astype(float) * beta
+            # left
+            ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[0, :-1]).astype(float) * beta
+
+            # bottom row
+            # above
+            ge[:, -1, :] += np.not_equal(comp[:, -1, :], labels[-2, :]).astype(float) * beta
+            # right
+            ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-1, 1:]).astype(float) * beta
+            # left
+            ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-1, :-1]).astype(float) * beta
+
+            # corners redo
+            # up left
+            ge[:, 0, 0] = (np.not_equal(comp[:, 0, 0], labels[1, 0]).astype(float) + np.not_equal(comp[:, 0, 0], labels[0, 1]).astype(float)) * beta
+            # low left
+            ge[:, -1, 0] = (np.not_equal(comp[:, -1, 0], labels[-1, 1]).astype(float) + np.not_equal(comp[:, -1, 0], labels[-2, 0]).astype(float)) * beta
+            # up right
+            ge[:, 0, -1] = (np.not_equal(comp[:, 0, -1], labels[1, -1]).astype(float) + np.not_equal(comp[:, 0, -1], labels[0, -2]).astype(float)) * beta
+            # low right
+            ge[:, -1, -1] = (np.not_equal(comp[:, -1, -1], labels[-2, -1]).astype(float) + np.not_equal(comp[:, -1, -1], labels[-1, -2]).astype(float)) * beta
+
+            return ge.reshape(self.shape[0] * self.shape[1], self.n_labels)
+
+        # ************************************************************************************************
+        elif self.dim == 3:
+            # TODO: [3D] implementation of gibbs energy
+            pass
 
     def mcr(self, true_labels):
         """Compares classified with true labels for each iteration step (for synthetic data)
         to obtain a measure of mismatch/convergence."""
         mcr_vals = []
         n = len(true_labels)
-        # TODO: 2d implementation for MCR
-        # TODO: 3d implementation for MCR
+        # TODO: [2D] implementation for MCR
+        # TODO: [3D] implementation for MCR
         for label in self.labels:
             missclassified = np.count_nonzero(true_labels - label)
             mcr_vals.append(missclassified / n)
@@ -467,12 +622,13 @@ class BaySeg:
 
         plt.show()
 
-    def diagnostics_plot(self, true_labels=None):
+    def diagnostics_plot(self, true_labels=None, ie_range=None):
         """
         Diagnostic plots for analyzing convergence: beta trace, correlation coefficient trace, labels trace and MCR.
         :param true_labels: If given calculates and plots MCR
         :return: Fancy figures
         """
+
         if true_labels is not None:
             fig = plt.figure(figsize=(15, 10))
             gs = gridspec.GridSpec(4, 2)
@@ -496,26 +652,51 @@ class BaySeg:
         ax2.legend()
         ax2.set_xlabel("Iterations")
 
-        # plot labels
-        ax3 = plt.subplot(gs[1, :])
-        ax3.imshow(np.array(self.labels), cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
-        ax3.set_ylabel("Iterations")
-        ax3.set_title("Labels")
-        ax3.grid(False)  # disable grid
+        # 1D
+        if self.dim == 1:
+            # PLOT LABELS
+            ax3 = plt.subplot(gs[1, :])
+            ax3.imshow(np.array(self.labels), cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
+            ax3.set_ylabel("Iterations")
+            ax3.set_title("Labels")
+            ax3.grid(False)  # disable grid
 
-        if true_labels is not None:
-            # plot the latent field
-            ax4 = plt.subplot(gs[2, :])
-            ax4.imshow(np.tile(np.expand_dims(true_labels, axis=1), 50).T,
+            if true_labels is not None:
+                # plot the latent field
+                ax4 = plt.subplot(gs[2, :])
+                ax4.imshow(np.tile(np.expand_dims(true_labels, axis=1), 50).T,
+                           cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
+                ax4.set_title("Latent field")
+                ax4.grid(False)
+
+                # plot the mcr
+                ax5 = plt.subplot(gs[3, :])
+                ax5.plot(self.mcr(true_labels), color="black", linewidth=1)
+                ax5.set_ylabel("MCR")
+                ax5.set_xlabel("Iterations")
+
+        # 2D
+        elif self.dim == 2:
+            # PLOT LABELS
+            ax3 = plt.subplot(gs[1, 0])
+            ax3.set_title("Labels (last iteration)")
+            ax3.imshow(np.array(self.labels[-1].reshape(self.shape[0], self.shape[1])),
                        cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
-            ax4.set_title("Latent field")
-            ax4.grid(False)
 
-            # plot the mcr
-            ax5 = plt.subplot(gs[3, :])
-            ax5.plot(self.mcr(true_labels), color="black", linewidth=1)
-            ax5.set_ylabel("MCR")
-            ax5.set_xlabel("Iterations")
+            # PLOT INFORMATION ENTROPY
+            if ie_range is None:  # use all
+                a = 0
+                b = -1
+            else:  # use given range
+                a = ie_range[0]
+                b = ie_range[1]
+
+            ie = calcualte_ie_masked(compute_prob_of_labels(self.labels[a:b]))  # calculate ie
+            ax4 = plt.subplot(gs[1, 1])
+            ax4.set_title("Information Entropy")
+            iep = ax4.imshow(ie.reshape(self.shape[0], self.shape[1]),
+                       cmap="viridis", aspect='auto', interpolation='nearest')
+            plt.colorbar(iep)
 
         plt.show()
 
@@ -534,36 +715,6 @@ def draw_labels_vect(labels_prob):
     d = (p.T - r).T
     # compare and count to get label
     return np.count_nonzero(np.greater_equal(0, d), axis=1)
-
-
-def _calc_gibbs_energy_vect(labels, beta, n_labels):
-    """
-    Calculates Gibbs energy for each element using a penalty factor beta.
-    :param labels:
-    :param beta:
-    :param n_labels:
-    :return: Gibbs energy matrix (n_obs times n_labels)
-    """
-
-    # TODO: 2d implementation of gibbs energy
-    # TODO: 3d implementation of gibbs energy
-
-    # tile
-    lt = np.tile(labels, (n_labels, 1)).T
-
-    ge = np.arange(n_labels)  # elemnts x labels
-    ge = np.tile(ge, (len(labels), 1))
-    ge = ge.astype(float)
-
-    # first row
-    top = np.expand_dims(np.not_equal(np.arange(n_labels), lt[1, :]) * beta, axis=0)
-    # mid
-    mid = (np.not_equal(ge[1:-1, :], lt[:-2, :]).astype(float) + np.not_equal(ge[1:-1, :], lt[2:, :]).astype(
-        float)) * beta
-    # last row
-    bot = np.expand_dims(np.not_equal(np.arange(n_labels), lt[-1, :]) * beta, axis=0)
-    # put back together and return gibbs energy
-    return np.concatenate((top, mid, bot))
 
 
 def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length):
@@ -639,26 +790,64 @@ def _calc_labels_prob(te, t):
     return (np.exp(-te/t).T / np.sum(np.exp(-te/t), axis=1)).T
 
 
-def _calc_log_prior_density(self, mu, rv_mu):
-    """
-    :param mu:
-    :param rv_mu:
-    :return:
-    """
-    return np.log(rv_mu.pdf(mu))
+# def _calc_log_prior_density(self, mu, rv_mu):
+#     """
+#     :param mu:
+#     :param rv_mu:
+#     :return:
+#     """
+#     return np.log(rv_mu.pdf(mu))
 
 
-
-
-
-def _pseudocolor(coords):
+def pseudocolor(coords_vector, extent, stamp=None):
     """Graph coloring based on the physical dimensions for independent labels draw."""
-    # TODO: 2d graph coloring
-    # TODO: 3d graph coloring
-    i_w = np.arange(0, len(coords), step=2)
-    i_b = np.arange(1, len(coords), step=2)
+    dim = np.shape(coords_vector)[1]
+    # ************************************************************************************************
+    # 1-DIMENSIONAL
+    if dim == 1:
+        i_w = np.arange(0, len(coords_vector), step=2)
+        i_b = np.arange(1, len(coords_vector), step=2)
 
-    return np.array([i_w, i_b]).T
+        return np.array([i_w, i_b]).T
+
+    # ************************************************************************************************
+    # 2-DIMENSIONAL
+    elif dim == 2:
+        if stamp is None or stamp == 8:
+            # use 8 stamp as default, resulting in 4 colors
+            colors = 4
+            # color image
+            colored_image = np.tile(np.kron([[0, 1], [2, 3]] * int(extent[0] / 2), np.ones((1, 1))), int(extent[1] / 2))
+            colored_flat = colored_image.reshape(extent[0] * extent[1])
+
+            # initialize storage array
+            ci = []
+            for c in range(colors):
+                x = np.where(colored_flat == c)[0]
+                ci.append(x)
+            return np.array(ci)
+
+        elif stamp == 4:
+            # use 4 stamp, resulting in 2 colors (checkerboard)
+            colors = 2
+            # color image
+            colored_image = np.tile(np.kron([[0, 1], [1, 0]] * int(extent[0] / 2), np.ones((1, 1))), int(extent[1] / 2))
+            colored_flat = colored_image.reshape(extent[0] * extent[1])
+
+            # initialize storage array
+            ci = []
+            for c in range(colors):
+                x = np.where(colored_flat == c)[0]
+                ci.append(x)
+            return ci
+        else:
+            raise Exception(" In 2D space the stamp parameter needs to be either None (defaults to 8), 4 or 8.")
+
+    # ************************************************************************************************
+    # 3-DIMENSIONAL
+    elif dim == 3:
+        raise Exception("3D space not yet supported.")
+        # TODO: 3d graph coloring
 
 
 def bic(feat_vector, n_labels):
@@ -693,3 +882,8 @@ def bic(feat_vector, n_labels):
 
     plt.show()
     print("global minimum: ", n_comp[bic_min])
+
+
+def gibbs_comp_f(a, value):
+    a = a[a != -999.]
+    return np.count_nonzero(a != value)

@@ -137,7 +137,7 @@ class BaySeg:
 
         # GRAPH COLORING
         self.stamp = stamp
-        self.colors = _pseudocolor(self.coords, self.shape[:-1], self.stamp)
+        self.colors = pseudocolor(self.coords, self.shape[:-1], self.stamp)
 
     def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005,
             theta_jump_length=0.0005, t=1., verbose=False):
@@ -710,7 +710,7 @@ def _calc_labels_prob(te, t):
 #     return np.log(rv_mu.pdf(mu))
 
 
-def _pseudocolor(coords_vector, extent, stamp=None):
+def pseudocolor(coords_vector, extent, stamp=None):
     """Graph coloring based on the physical dimensions for independent labels draw."""
     dim = np.shape(coords_vector)[1]
     # ************************************************************************************************
@@ -736,7 +736,7 @@ def _pseudocolor(coords_vector, extent, stamp=None):
             for c in range(colors):
                 x = np.where(colored_flat == c)[0]
                 ci.append(x)
-            return ci
+            return np.array(ci)
 
         elif stamp == 4:
             # use 4 stamp, resulting in 2 colors (checkerboard)

@@ -471,12 +471,12 @@ class BaySeg:
 
             if self.stamp == 4:
                 fp = np.array([[0, 1, 0],
-                                   [1, 0, 1],
-                                   [0, 1, 0]]).astype(bool)
+                               [1, 0, 1],
+                               [0, 1, 0]]).astype(bool)
             else:
                 fp = np.array([[1, 1, 1],
-                                   [1, 0, 1],
-                                   [1, 1, 1]]).astype(bool)
+                               [1, 0, 1],
+                               [1, 1, 1]]).astype(bool)
 
             for i in range(self.n_labels):
                 ge[i, :, :] = generic_filter(l, partial(gibbs_comp_f, value=i), footprint=fp, mode="constant",

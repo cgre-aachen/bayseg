@@ -1,8 +1,6 @@
 import pytest
 import numpy as np
-
 import sys
-
 sys.path.append("../")
 from bayseg import pseudocolor
 
@@ -19,6 +17,8 @@ def test_pseudocolor_1d():
 
 def test_pseudocolor_2d():
     """Assert correct pseudocoloring in 2d."""
+    # TODO: [TEST] 2D pseudocoloring test with different shapes
+
     coords = np.array([[0, 0],
                        [0, 0],
                        [1, 1],

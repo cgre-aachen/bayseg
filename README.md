@@ -2,8 +2,6 @@
 
 > Unsupervised spatial segmentation in Python
 
-<hr>
-
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)]()
 [![Python 3.6.x](https://img.shields.io/badge/Python-3.6.x-lightgrey.svg)]()
 
@@ -16,7 +14,7 @@ and expanding the implementation to two and three physical dimensions.
  
 ### Examples
 #### Segmentation of geophysical well log data
-![alt text](data/images/front_gif.gif)
+![alt text](data/figures/front_gif.gif)
 
 (Above well log data used from machine learning contest of [Hall, 2016](https://library.seg.org/doi/abs/10.1190/tle35100906.1))
 

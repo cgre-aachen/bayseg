@@ -26,6 +26,7 @@ import tqdm  # smart-ish progress bar
 import matplotlib.pyplot as plt  # 2d plotting
 from matplotlib import gridspec, rcParams  # plot arrangements
 from .colors import cmap, cmap_norm  # custom colormap
+
 plt.style.use('bmh')  # plot style
 # from functools import partial
 # from scipy.ndimage import generic_filter
@@ -100,7 +101,8 @@ class BaySeg:
 
         # ************************************************************************************************
         # INIT STORAGE ARRAYS
-        self.betas = [beta_init]  # initial beta
+
+        # self.betas = [beta_init]  # initial beta
         # self.mus = np.array([], dtype=object)
         # self.covs = np.array([], dtype=object)
         # self.labels = np.array([], dtype=object)
@@ -129,9 +131,20 @@ class BaySeg:
         # ************************************************************************************************
         # Initialize PRIOR distributions for beta, mu and covariance
         # BETA
-        # beta_dim = [1, 4, 13]
-        beta_dim = [1, 1, 1]
-        self.prior_beta = norm(beta_init, np.eye(beta_dim[self.dim - 1]) * 100)
+        if self.dim == 1:
+            self.prior_beta = norm(beta_init, np.eye(1) * 100)
+            self.betas = [beta_init]
+        elif self.dim == 2:
+            if self.stencil == "4p":
+                beta_dim = 2
+            elif self.stencil == "8p" or self.stencil is None:
+                beta_dim = 4
+
+            self.betas = [[beta_init for i in range(beta_dim)]]
+            self.prior_beta = multivariate_normal([beta_init for i in range(beta_dim)], np.eye(beta_dim) * 100)
+
+        elif self.dim == 3:
+            raise Exception("3D not yet supported.")
 
         # MU
         # generate distribution means for each label
@@ -139,7 +152,8 @@ class BaySeg:
         # generate distribution covariances for each label
         prior_mu_stds = [np.eye(self.n_feat) * 100 for label in range(self.n_labels)]
         # use the above to generate multivariate normal distributions for each label
-        self.priors_mu = [multivariate_normal(prior_mu_means[label], prior_mu_stds[label]) for label in range(self.n_labels)]
+        self.priors_mu = [multivariate_normal(prior_mu_means[label], prior_mu_stds[label]) for label in
+                          range(self.n_labels)]
 
         # COV
         # generate b_sigma
@@ -151,8 +165,6 @@ class BaySeg:
         # generate nu
         self.nu = self.n_feat + 1
         # ************************************************************************************************
-
-
 
     def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005,
             theta_jump_length=0.0005, t=1., verbose=False, fix_beta=False):
@@ -359,7 +371,7 @@ class BaySeg:
                 self.betas.append(self.betas[-1])
         else:
             self.betas.append(self.betas[-1])
-        # ************************************************************************************************
+            # ************************************************************************************************
 
     def log_prior_density_mu(self, mu, label):
         """Calculates the summed log prior density for a given mean and labels array."""
@@ -372,8 +384,9 @@ class BaySeg:
     def log_prior_density_cov(self, cov, l):
         """Calculates the summed log prior density for the given covariance matrix and labels array."""
         lam = np.sqrt(np.diag(cov[l, :, :]))
-        r = np.diag(1./lam) @ cov[l, :, :] @ np.diag(1. / lam)
-        logp_r = -0.5 * (self.nu + self.n_feat + 1) * np.log(np.linalg.det(r)) - self.nu / 2. * np.sum(np.log(np.diag(np.linalg.inv(r))))
+        r = np.diag(1. / lam) @ cov[l, :, :] @ np.diag(1. / lam)
+        logp_r = -0.5 * (self.nu + self.n_feat + 1) * np.log(np.linalg.det(r)) - self.nu / 2. * np.sum(
+            np.log(np.diag(np.linalg.inv(r))))
         logp_lam = np.sum(np.log(multivariate_normal(mean=self.b_sigma[l, :], cov=self.kesi[l, :]).pdf(np.log(lam.T))))
         return logp_r + logp_lam
 
@@ -389,8 +402,19 @@ class BaySeg:
         """
         # create proposal covariance depending on physical dimensionality
         # dim = [1, 4, 13]
-        dim = [1, 1, 1]
-        sigma_prop = np.eye(dim[self.dim - 1]) * beta_jump_length
+        if self.dim == 1:
+            beta_dim = 1
+
+        elif self.dim == 2:
+            if self.stencil == "4p":
+                beta_dim = 2
+            elif self.stencil == "8p" or self.stencil is None:
+                beta_dim = 4
+
+        elif self.dim == 3:
+            raise Exception("3D not yet supported.")
+
+        sigma_prop = np.eye(beta_dim) * beta_jump_length
         # draw from multivariate normal distribution and return
         # return np.exp(multivariate_normal(mean=np.log(beta_prev), cov=sigma_prop).rvs())
         return multivariate_normal(mean=beta_prev, cov=sigma_prop).rvs()
@@ -457,7 +481,8 @@ class BaySeg:
                 energy_like_labels[:, l] = np.einsum("...i,ji,...j",
                                                      0.5 * np.array([self.feat - mu[l, :]]),
                                                      np.linalg.inv(cov[l, :, :]),
-                                                     np.array([self.feat - mu[l, :]])) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
+                                                     np.array([self.feat - mu[l, :]])) + 0.5 * np.log(
+                    np.linalg.det(cov[l, :, :]))
 
             return energy_like_labels
 
@@ -468,7 +493,8 @@ class BaySeg:
             for x in range(self.phys_shp.prod()):
                 for l in range(self.n_labels):
                     energy_like_labels[x, l] = 0.5 * np.array([self.feat[x] - mu[l, :]]) @ np.linalg.inv(
-                        cov[l, :, :]) @ np.array([self.feat[x] - mu[l, :]]).T + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
+                        cov[l, :, :]) @ np.array([self.feat[x] - mu[l, :]]).T + 0.5 * np.log(
+                        np.linalg.det(cov[l, :, :]))
 
             return energy_like_labels
 
@@ -489,7 +515,7 @@ class BaySeg:
             # tile
             lt = np.tile(labels, (self.n_labels, 1)).T
 
-            ge = np.arange(self.n_labels)  # elemnts x labels
+            ge = np.arange(self.n_labels)  # elements x labels
             ge = np.tile(ge, (len(labels), 1)).astype(float)
 
             # first row
@@ -519,74 +545,113 @@ class BaySeg:
                 comp[i, :, :] = i
             # print("comp shp:", comp.shape)
 
-            ge[:, 1:-1, 1:-1] = (np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 1:-1]).astype(float)  # compare with left
-                                 + np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 1:-1]).astype(float)  # compare with right
-                                 + np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, :-2]).astype(float)  # compare with above
-                                 + np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, 2:]).astype(float)) * beta  # compare with below
+            # do the first two directions
+            ge[:, 1:-1, 1:-1] += (
+                                 np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 1:-1]).astype(float)  # compare with left
+                                 + np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 1:-1]).astype(float)) * beta[
+                                     0]  # compare with right
 
-            # return ge.reshape(self.shape[0] * self.shape[1], self.n_labels)
+            ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, :-2]).astype(
+                float)  # compare with above
+                                  + np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, 2:]).astype(float)) * beta[
+                                     1]  # compare with below
 
+            if self.stencil is "8p":
+                ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, :-2]).astype(
+                    float)  # compare with left up
+                                      + np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 2:]).astype(float)) * beta[
+                                         2]  # compare with right down
+
+                ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, :-2]).astype(
+                    float)  # compare with right up
+                                      + np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 2:]).astype(float)) * beta[
+                                         3]  # compare with left down
+
+            # ***********
+            # left column
             # right
-            ge[:, :, 0] += np.not_equal(comp[:, :, 0], labels[:, 1]).astype(float) * beta
+            ge[:, :, 0] += np.not_equal(comp[:, :, 0], labels[:, 1]).astype(float) * beta[0]
             # above
-            ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 1]).astype(float) * beta
+            ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 0]).astype(float) * beta[1]
             # below
-            ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 1]).astype(float) * beta
+            ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 0]).astype(float) * beta[1]
+
+            if self.stencil is "8p":
+                # right up
+                ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 1]).astype(float) * beta[3]
+                # right down
+                ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 1]).astype(float) * beta[2]
 
             # right column
             # left
-            ge[:, :, -1] += np.not_equal(comp[:, :, -1], labels[:, -2]).astype(float) * beta
+            ge[:, :, -1] += np.not_equal(comp[:, :, -1], labels[:, -2]).astype(float) * beta[0]
             # above
-            ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -1]).astype(float) * beta
+            ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -1]).astype(float) * beta[1]
             # below
-            ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -1]).astype(float) * beta
+            ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -1]).astype(float) * beta[1]
 
+            if self.stencil is "8p":
+                # left up
+                ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -2]).astype(float) * beta[2]
+                # left down
+                ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -2]).astype(float) * beta[3]
+
+            # *******
             # top row
             # below
-            ge[:, 0, :] += np.not_equal(comp[:, 0, :], labels[1, :]).astype(float) * beta
+            ge[:, 0, :] += np.not_equal(comp[:, 0, :], labels[1, :]).astype(float) * beta[1]
             # right
-            ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[0, 1:]).astype(float) * beta
+            ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[0, 1:]).astype(float) * beta[0]
             # left
-            ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[0, :-1]).astype(float) * beta
+            ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[0, :-1]).astype(float) * beta[0]
+
+            if self.stencil is "8p":
+                # below left
+                ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[1, :-1]).astype(float) * beta[3]
+                # below right
+                ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[1, 1:]).astype(float) * beta[2]
 
             # bottom row
             # above
-            ge[:, -1, :] += np.not_equal(comp[:, -1, :], labels[-2, :]).astype(float) * beta
+            ge[:, -1, :] += np.not_equal(comp[:, -1, :], labels[-2, :]).astype(float) * beta[1]
             # right
-            ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-1, 1:]).astype(float) * beta
+            ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-1, 1:]).astype(float) * beta[0]
             # left
-            ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-1, :-1]).astype(float) * beta
+            ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-1, :-1]).astype(float) * beta[0]
 
+            if self.stencil is "8p":
+                # above right
+                ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-2, 1:]).astype(float) * beta[3]
+                # above left
+                ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-2, :-1]).astype(float) * beta[2]
+
+            # ************
             # corners redo
             # up left
-            ge[:, 0, 0] = (np.not_equal(comp[:, 0, 0], labels[1, 0]).astype(float) + np.not_equal(comp[:, 0, 0], labels[0, 1]).astype(float)) * beta
-            # low left
-            ge[:, -1, 0] = (np.not_equal(comp[:, -1, 0], labels[-1, 1]).astype(float) + np.not_equal(comp[:, -1, 0], labels[-2, 0]).astype(float)) * beta
-            # up right
-            ge[:, 0, -1] = (np.not_equal(comp[:, 0, -1], labels[1, -1]).astype(float) + np.not_equal(comp[:, 0, -1], labels[0, -2]).astype(float)) * beta
-            # low right
-            ge[:, -1, -1] = (np.not_equal(comp[:, -1, -1], labels[-2, -1]).astype(float) + np.not_equal(comp[:, -1, -1], labels[-1, -2]).astype(float)) * beta
+            ge[:, 0, 0] = np.not_equal(comp[:, 0, 0], labels[1, 0]).astype(float) * beta[1] \
+                          + np.not_equal(comp[:, 0, 0], labels[0, 1]).astype(float) * beta[0]
+            if self.stencil is "8p":
+                ge[:, 0, 0] += np.not_equal(comp[:, 0, 0], labels[1, 1]).astype(float) * beta[2]
 
+            # low left
+            ge[:, -1, 0] = np.not_equal(comp[:, -1, 0], labels[-1, 1]).astype(float) * beta[0] \
+                           + np.not_equal(comp[:, -1, 0], labels[-2, 0]).astype(float) * beta[1]
+            if self.stencil is "8p":
+                ge[:, -1, 0] += np.not_equal(comp[:, -1, 0], labels[-2, 1]).astype(float) * beta[3]
+
+            # up right
+            ge[:, 0, -1] = np.not_equal(comp[:, 0, -1], labels[1, -1]).astype(float) * beta[1] \
+                           + np.not_equal(comp[:, 0, -1], labels[0, -2]).astype(float) * beta[0]
+            if self.stencil is "8p":
+                ge[:, 0, -1] += np.not_equal(comp[:, 0, -1], labels[1, -2]).astype(float) * beta[3]
+
+            # low right
+            ge[:, -1, -1] = np.not_equal(comp[:, -1, -1], labels[-2, -1]).astype(float) * beta[1] \
+                            + np.not_equal(comp[:, -1, -1], labels[-1, -2]).astype(float) * beta[0]
+            if self.stencil is "8p":
+                ge[:, -1, -1] += np.not_equal(comp[:, -1, -1], labels[-2, -2]).astype(float) * beta[2]
 
             return np.array([ge[l, :, :].ravel() for l in range(self.n_labels)]).T
-
-
-
-            # create ndarray for gibbs energy depending on element structure and n_labels
-
-            # for x in range(1, self.shape[0] - 1):
-            #     for y in range(1, self.shape[1] - 1):
-            #         for l in range(self.n_labels):
-            #             # above
-            #             ge[l, x, y] += float(labels[x + 1, y] != comp[l, x, y]) * beta
-            #             # below
-            #             ge[l, x, y] += float(labels[x - 1, y] != comp[l, x, y]) * beta
-            #             # left
-            #             ge[l, x, y] += float(labels[x, y - 1] != comp[l, x, y]) * beta
-            #             # right
-            #             ge[l, x, y] += float(labels[x, y + 1] != comp[l, x, y]) * beta
-            #
-            # return ge.reshape(self.shape[0] * self.shape[1], self.n_labels)
 
         # ************************************************************************************************
         elif self.dim == 3:
@@ -636,7 +701,7 @@ class BaySeg:
         Plot the mu and stdev for each label for each feature.
         :return: Fancy figures
         """
-        fig, ax = plt.subplots(nrows=self.n_feat, ncols=2, figsize=(15, 5*self.n_feat))
+        fig, ax = plt.subplots(nrows=self.n_feat, ncols=2, figsize=(15, 5 * self.n_feat))
 
         ax[0, 0].set_title(r"$\mu$")
         ax[0, 1].set_title(r"$\sigma$")
@@ -723,13 +788,6 @@ class BaySeg:
 
         # 2D
         elif self.dim == 2:
-            # PLOT LABELS
-            ax3 = plt.subplot(gs[1, 0])
-            ax3.set_title("Labels (last iteration)")
-            ax3.imshow(np.array(self.labels[-1].reshape(self.shape[0], self.shape[1])),
-                       cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
-
-            # PLOT INFORMATION ENTROPY
             if ie_range is None:  # use all
                 a = 0
                 b = -1
@@ -737,11 +795,22 @@ class BaySeg:
                 a = ie_range[0]
                 b = ie_range[1]
 
-            ie = calcualte_ie_masked(compute_prob_of_labels(self.labels[a:b]))  # calculate ie
+            lp = compute_prob_of_labels(self.labels[a:b])
+            max_lp = np.argmax(lp, axis=0)
+            # print(max_lp)
+
+            # PLOT LABELS
+            ax3 = plt.subplot(gs[1, 0])
+            ax3.set_title("Labels (last iteration)")
+            ax3.imshow(np.array(max_lp.reshape(self.shape[0], self.shape[1])),
+                       cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
+
+            # PLOT INFORMATION ENTROPY
+            ie = calcualte_ie_masked(lp)  # calculate ie
             ax4 = plt.subplot(gs[1, 1])
             ax4.set_title("Information Entropy")
             iep = ax4.imshow(ie.reshape(self.shape[0], self.shape[1]),
-                       cmap="viridis", aspect='auto', interpolation='nearest')
+                             cmap="viridis", aspect='auto', interpolation='nearest')
             plt.colorbar(iep)
 
         plt.show()
@@ -787,6 +856,10 @@ def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length)
     comb = list(combinations(range(n_feat), 2))
     n_comb = len(comb)
     theta_jump = multivariate_normal(mean=[0 for i in range(n_comb)], cov=np.ones(n_comb) * theta_jump_length).rvs()
+
+    if n_comb == 1:  # turn it into a list if there is only one combination (^= 2 features)
+        theta_jump = [theta_jump]
+
     cov_prop = np.zeros_like(cov_prev)
     # print("cov_prev:", cov_prev)
 
@@ -805,8 +878,8 @@ def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length)
         a = np.eye(n_feat)
         # print("a init:", a)
         # print("shape a:", np.shape(a))
-        for j in range(n_comb):
-            rotation_matrix = _cov_proposal_rotation_matrix(v_l[:, comb[j][0]], v_l[:, comb[j][1]], theta_jump[j])
+        for val in range(n_comb):
+            rotation_matrix = _cov_proposal_rotation_matrix(v_l[:, comb[val][0]], v_l[:, comb[val][1]], theta_jump[val])
             # print("rot mat:", rotation_matrix)
             a = rotation_matrix @ a
             # print("a:", a)
@@ -841,13 +914,14 @@ def _cov_proposal_rotation_matrix(x, y, theta):
     # what is happening
 
     # rotation_matrix = np.eye(len(x)) - np.matmul(uu, uu.T) - np.matmul(np.matmul(vv, vv.T) + np.matmul(np.hstack((uu, vv)), np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])), np.hstack((uu, vv)).T)
-    rotation_matrix = np.eye(len(x)) - uu @ uu.T - vv @ vv.T + np.hstack((uu, vv)) @ np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]) @ np.hstack((uu, vv)).T
+    rotation_matrix = np.eye(len(x)) - uu @ uu.T - vv @ vv.T + np.hstack((uu, vv)) @ np.array(
+        [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]) @ np.hstack((uu, vv)).T
     return rotation_matrix
 
 
 def _calc_labels_prob(te, t):
     """"Calculate labels probability for array of total energies (te) and totally arbitrary skalar value t."""
-    return (np.exp(-te/t).T / np.sum(np.exp(-te/t), axis=1)).T
+    return (np.exp(-te / t).T / np.sum(np.exp(-te / t), axis=1)).T
 
 
 def pseudocolor(shape, stencil=None):
@@ -872,7 +946,7 @@ def pseudocolor(shape, stencil=None):
     # ************************************************************************************************
     # 2-DIMENSIONAL
     elif dim == 2:
-        if stencil is None or stencil == 8:
+        if stencil is None or stencil == "8p":
             # use 8 stamp as default, resulting in 4 colors
             colors = 4
             # color image
@@ -886,7 +960,7 @@ def pseudocolor(shape, stencil=None):
                 ci.append(x)
             return np.array(ci)
 
-        elif stencil == 4:
+        elif stencil == "4p":
             # use 4 stamp, resulting in 2 colors (checkerboard)
             colors = 2
             # color image
@@ -900,7 +974,7 @@ def pseudocolor(shape, stencil=None):
                 ci.append(x)
             return ci
         else:
-            raise Exception(" In 2D space the stamp parameter needs to be either None (defaults to 8), 4 or 8.")
+            raise Exception(" In 2D space the stamp parameter needs to be either None (defaults to 8p), 4p or 8p.")
 
     # ************************************************************************************************
     # 3-DIMENSIONAL
@@ -921,7 +995,7 @@ def bic(feat_vector, n_labels):
         Plot
 
     """
-    n_comp = np.arange(1, n_labels+1)
+    n_comp = np.arange(1, n_labels + 1)
     # create array of GMMs in range of components/labels and fit to observations
     gmms = np.array([mixture.GaussianMixture(n_components=n, covariance_type="full").fit(feat_vector) for n in n_comp])
     # calculate BIC for each GMM based on observartions

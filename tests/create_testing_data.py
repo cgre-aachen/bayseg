@@ -44,8 +44,8 @@ def func(x, y):
 def create_2d_data(ny, nx):
     # **********************************************************************************************************
     # latent field
-    xaxis = np.linspace(0, 6, ny)
-    yaxis = np.linspace(0, 6, nx)
+    xaxis = np.linspace(0, 4, ny)
+    yaxis = np.linspace(0, 4, nx)
     a, b = np.meshgrid(yaxis, xaxis)
     result = func(a, b)
 
@@ -56,9 +56,9 @@ def create_2d_data(ny, nx):
     # **********************************************************************************************************
     # sample
     f = 4
-    c1 = multivariate_normal([7.5, 7.5, 10.5, 3.5], np.eye(f) * 1.35)
-    c2 = multivariate_normal([8, 7.9, 10, 2.9], np.eye(f) * 1.55)
-    c3 = multivariate_normal([8.5, 9, 9.5, 1], np.eye(f) * 1.95)
+    c1 = multivariate_normal([7.5, 7.5, 10.5, 3.5], np.eye(f) * 0.35)
+    c2 = multivariate_normal([8, 7.9, 10, 2.9], np.eye(f) * 0.55)
+    c3 = multivariate_normal([8.5, 9, 9.5, 1], np.eye(f) * 0.75)
 
     obs = np.zeros((ny, nx, f))
 

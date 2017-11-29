@@ -21,7 +21,7 @@ def create_1d_data():
     i = 4
     c1 = scipy.stats.multivariate_normal([7, 9, 10, 2.7], np.eye(i) * 0.35)
     c2 = scipy.stats.multivariate_normal([8, 8, 9.5, 2], np.eye(i) * 0.55)
-    c3 = scipy.stats.multivariate_normal([10, 9.5, 9, 1.5], np.eye(i) * 0.25)
+    c3 = scipy.stats.multivariate_normal([10, 9.5, 9, 1.5], np.eye(i) * 10.25)
 
     obs = np.empty((len(coords[:, 0]), 4))
 
@@ -41,36 +41,36 @@ def func(x, y):
     return np.sin(y * x)
 
 
-def create_2d_data(n, m):
+def create_2d_data(ny, nx):
     # **********************************************************************************************************
     # latent field
-    xaxis = np.linspace(0, 4, n)
-    yaxis = np.linspace(0, 4, m)
-    x, y = np.meshgrid(xaxis, yaxis)
-    result = func(x, y)
+    xaxis = np.linspace(0, 6, ny)
+    yaxis = np.linspace(0, 6, nx)
+    a, b = np.meshgrid(yaxis, xaxis)
+    result = func(a, b)
 
-    latent_2d = np.zeros_like(result)
+    latent_2d = np.zeros((ny, nx))
     latent_2d[result > -0.5] = 1
     latent_2d[result > 0.5] = 2
 
     # **********************************************************************************************************
     # sample
     f = 4
-    c1 = multivariate_normal([7.5, 7.5, 11, 3.5], np.eye(f) * 0.35)
-    c2 = multivariate_normal([8, 7.9, 10, 2.9], np.eye(f) * 0.55)
-    c3 = multivariate_normal([8.5, 9, 9, 1], np.eye(f) * 0.95)
+    c1 = multivariate_normal([7.5, 7.5, 10.5, 3.5], np.eye(f) * 1.35)
+    c2 = multivariate_normal([8, 7.9, 10, 2.9], np.eye(f) * 1.55)
+    c3 = multivariate_normal([8.5, 9, 9.5, 1], np.eye(f) * 1.95)
 
-    obs = np.zeros((m, n, f))
+    obs = np.zeros((ny, nx, f))
 
-    for i, x in enumerate(latent_2d[:, 0]):
-        for j, y in enumerate(latent_2d[0, :]):
+    for y in range(ny):
+        for x in range(nx):
             # generate a 2-d random vector at each point
-            if latent_2d[i, j] == 0:
-                obs[i, j, :] = c1.rvs()
-            elif latent_2d[i, j] == 1:
-                obs[i, j, :] = c2.rvs()
-            elif latent_2d[i, j] == 2:
-                obs[i, j, :] = c3.rvs()
+            if latent_2d[y, x] == 0:
+                obs[y, x, :] = c1.rvs()
+            elif latent_2d[y, x] == 1:
+                obs[y, x, :] = c2.rvs()
+            elif latent_2d[y, x] == 2:
+                obs[y, x, :] = c3.rvs()
 
     # feature_vector = np.array([obs[:, :, 0].flatten(), obs[:, :, 1].flatten(), obs[:, :, 2].flatten(), obs[:, :, 3].flatten()]).T
 

@@ -92,3 +92,70 @@ def _define_neighborhood_system(coordinates):
         pass
 
     return neighbors
+
+# l = labels.reshape(self.shape[:-1])
+            # ge = np.tile(np.zeros_like(l).astype(float), (3, 1, 1))
+            #
+            # if self.stamp == 4:
+            #     fp = np.array([[0, 1, 0],
+            #                    [1, 0, 1],
+            #                    [0, 1, 0]]).astype(bool)
+            # else:
+            #     fp = np.array([[1, 1, 1],
+            #                    [1, 0, 1],
+            #                    [1, 1, 1]]).astype(bool)
+            #
+            # for i in range(self.n_labels):
+            #     ge[i, :, :] = generic_filter(l, partial(gibbs_comp_f, value=i), footprint=fp, mode="constant",
+            #                                                cval=-999) * beta
+            #
+            # if verbose == "energy":
+            #     print("\n")
+            #     print("GIBBS ENERGY")
+            #     print(ge)
+            #
+            # return ge.reshape(self.feat.shape[0], self.n_labels)
+
+
+
+# # left column
+            # # right
+            # ge[:, :, 0] += np.not_equal(comp[:, :, 0], labels[:, 1]).astype(float) * beta
+            # # above
+            # ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 1]).astype(float) * beta
+            # # below
+            # ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 1]).astype(float) * beta
+            #
+            # # right column
+            # # left
+            # ge[:, :, -1] += np.not_equal(comp[:, :, -1], labels[:, -2]).astype(float) * beta
+            # # above
+            # ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -1]).astype(float) * beta
+            # # below
+            # ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -1]).astype(float) * beta
+            #
+            # # top row
+            # # below
+            # ge[:, 0, :] += np.not_equal(comp[:, 0, :], labels[1, :]).astype(float) * beta
+            # # right
+            # ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[0, 1:]).astype(float) * beta
+            # # left
+            # ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[0, :-1]).astype(float) * beta
+            #
+            # # bottom row
+            # # above
+            # ge[:, -1, :] += np.not_equal(comp[:, -1, :], labels[-2, :]).astype(float) * beta
+            # # right
+            # ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-1, 1:]).astype(float) * beta
+            # # left
+            # ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-1, :-1]).astype(float) * beta
+            #
+            # # corners redo
+            # # up left
+            # ge[:, 0, 0] = (np.not_equal(comp[:, 0, 0], labels[1, 0]).astype(float) + np.not_equal(comp[:, 0, 0], labels[0, 1]).astype(float)) * beta
+            # # low left
+            # ge[:, -1, 0] = (np.not_equal(comp[:, -1, 0], labels[-1, 1]).astype(float) + np.not_equal(comp[:, -1, 0], labels[-2, 0]).astype(float)) * beta
+            # # up right
+            # ge[:, 0, -1] = (np.not_equal(comp[:, 0, -1], labels[1, -1]).astype(float) + np.not_equal(comp[:, 0, -1], labels[0, -2]).astype(float)) * beta
+            # # low right
+            # ge[:, -1, -1] = (np.not_equal(comp[:, -1, -1], labels[-2, -1]).astype(float) + np.not_equal(comp[:, -1, -1], labels[-1, -2]).astype(float)) * beta

@@ -31,7 +31,7 @@ if plot:
 
 clf = bayseg.BaySeg(observations, 3, beta_init=1)
 
-clf.fit(1, beta_jump_length=0.01, verbose=False)
+clf.fit(100, beta_jump_length=0.01, verbose=False)
 
 clf.diagnostics_plot()
 

@@ -1,5 +1,9 @@
 # BaySeg
 
+> Unsupervised spatial segmentation in Python
+
+<hr>
+
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)]()
 [![Python 3.6.x](https://img.shields.io/badge/Python-3.6.x-lightgrey.svg)]()
 
@@ -15,6 +19,16 @@ and expanding the implementation to two and three physical dimensions.
 ![alt text](data/images/front_gif.gif)
 
 (Above well log data used from machine learning contest of [Hall, 2016](https://library.seg.org/doi/abs/10.1190/tle35100906.1))
+
+### Table of contents
+
++ [Examples](#examples)
+  - [Segmentation of geophysical well log data](#segmentation-of-geophysical-well-log-data)
++ [Installation](#installation)
+  - [Dependencies](#dependencies)
+  - [Cloning directly from GitHub](#cloning-directly-from-github)
++ [Getting Started](#getting-started)
++ [References](#references)
 
 ### Installation
 

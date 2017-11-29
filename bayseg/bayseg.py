@@ -33,14 +33,22 @@ from .ie import *
 
 
 class BaySeg:
-    def __init__(self, data, n_labels, beta_init=1, stamp=None):
+    def __init__(self, data, n_labels, beta_init=1, stencil=None):
         """
 
-        :param coordinates: Physical coordinate system as numpy ndarray (n_coord, 1)
-        :param observations: Observations collected at every coordinate as a numpy ndarray (n_coord, n_feat)
-        :param n_labels: Number of labels to be used in the clustering (int)
-        :param beta_init: Initial beta value (float)
-        :param bic: (bool) for using Bayesian Information Criterion (Schwarz, 1978) for determining n_labels
+        Args:
+            data (:obj:`np.ndarray`): Multidimensional data array containing all observations (features) in the
+                following format:
+
+                    1D = (X, F)
+                    2D = (X, Y, F)
+                    3D = (X, Y, Z, F)
+
+            n_labels (int): Number of labels representing the number of clusters to be segmented.
+            beta_init (float): Initial penalty value for Gibbs energy calculation.
+            stencil (int): Number specifying the stencil of the neighborhood system used in the Gibbs energy
+                calculation.
+
         """
         # TODO: [DOCS] Main object description
 
@@ -110,6 +118,10 @@ class BaySeg:
         # INIT COV (covariances from initial GMM)
         self.covs = [self.gmm.covariances_]
 
+        self.labels_probability = []
+        self.storage_gibbs_e = []
+        self.storage_like_e = []
+
         # ************************************************************************************************
         # Initialize PRIOR distributions for beta, mu and covariance
         # BETA
@@ -137,39 +149,44 @@ class BaySeg:
         # ************************************************************************************************
 
         # GRAPH COLORING
-        self.stamp = stamp
+        self.stamp = stencil
         self.colors = pseudocolor(self.coords, self.shape[:-1], self.stamp)
 
     def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005,
             theta_jump_length=0.0005, t=1., verbose=False, fix_beta=False):
-        """
+        """Fit the segmentation parameters to the given data.
 
-        :param n:
-        :param beta_jump_length:
-        :param mu_jump_length:
-        :param cov_volume_jump_length:
-        :param theta_jump_length:
-        :param t:
-        :param verbose:
-        :return:
+        Args:
+            n (int): Number of iterations.
+            beta_jump_length (float): Hyperparameter specifying the beta proposal jump length.
+            mu_jump_length (float): Hyperparameter for the mean proposal jump length.
+            cov_volume_jump_length (float):
+            theta_jump_length (float):
+            t (float):
+            verbose (bool or :obj:`str`):
+            fix_beta (bool):
+
         """
         for g in tqdm.trange(n):
             self.gibbs_sample(t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length,
                               verbose, fix_beta)
 
-    def gibbs_sample(self, t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length, verbose, fix_beta):
-        """
-        Gibbs sampler. This is the main function of the algorithm and needs an in-depth description
+    def gibbs_sample(self, t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length, verbose,
+                     fix_beta):
+        """Takes care of the Gibbs sampling. This is the main function of the algorithm.
 
-        :param t: Hyperparameter
-        :param beta_jump_length: Hyperparameter
-        :param mu_jump_length: Hyperparameter
-        :param cov_volume_jump_length: Hyperparameter
-        :param theta_jump_length: Hyperparameter
-        :param verbose: bool or str specifying verbosity of the function
+        Args:
+            t: Hyperparameter
+            beta_jump_length: Hyperparameter
+            mu_jump_length: Hyperparameter
+            cov_volume_jump_length: Hyperparameter
+            theta_jump_length: Hyperparameter
+            verbose (bool or :obj:`str`): Toggles verbosity.
+            fix_beta (bool): Fixed beta to the inital value if True, else adaptive.
 
-        The function updates directly on the object variables and appends new draws of labels and
-        parameters to their respective storages.
+        Returns:
+            The function updates directly on the object variables and appends new draws of labels and
+            parameters to their respective storages.
         """
         # TODO: [GENERAL] In-depth description of the gibbs sampling function
 
@@ -200,14 +217,17 @@ class BaySeg:
         # make copy of previous labels
         new_labels = copy(self.labels[-1])
 
-        for color_f in self.colors:
+        for i, color_f in enumerate(self.colors):
+            #print("color ", i+1)
             new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
-
+            #print("labels sum:", new_labels.sum())
             # now recalculate gibbs energy and other energies from the mixture of old and new labels
             gibbs_energy = self._calc_gibbs_energy_vect(new_labels, self.betas[-1], verbose=verbose)
+            #print(gibbs_energy.sum(axis=0))
             total_energy = energy_like + self_energy + gibbs_energy
             labels_prob = _calc_labels_prob(total_energy, t)
 
+        self.labels_probability.append(labels_prob)
         self.labels.append(new_labels)
 
         # ************************************************************************************************
@@ -301,6 +321,8 @@ class BaySeg:
 
         # append cov and mu
         self.covs.append(cov_next)
+        self.storage_gibbs_e.append(gibbs_energy)
+        self.storage_like_e.append(energy_like)
 
         if not fix_beta:
             # ************************************************************************************************
@@ -338,29 +360,15 @@ class BaySeg:
         # ************************************************************************************************
 
     def log_prior_density_mu(self, mu, label):
-        """
-
-        :param mu:
-        :param label:
-        :return:
-        """
+        """Calculates the summed log prior density for a given mean and labels array."""
         return np.sum(np.log(self.priors_mu[label].pdf(mu)))
 
     def log_prior_density_beta(self, beta):
-        """
-        Calculates the log prior density of beta.
-        :param beta: Beta value (float)
-        :return: Log prior density of beta (float)
-        """
+        """Calculates the log prior density for a given beta array."""
         return np.log(self.prior_beta.pdf(beta))
 
     def log_prior_density_cov(self, cov, l):
-        """
-        Calculate the log prior density of the covariance matrix for a given label.
-        :param cov: Covariance matrix.
-        :param l: Label (int)
-        :return: Log prior density of covariance for label (float)
-        """
+        """Calculates the summed log prior density for the given covariance matrix and labels array."""
         lam = np.sqrt(np.diag(cov[l, :, :]))
         r = np.diag(1./lam) @ cov[l, :, :] @ np.diag(1. / lam)
         logp_r = -0.5 * (self.nu + self.n_feat + 1) * np.log(np.linalg.det(r)) - self.nu / 2. * np.sum(np.log(np.diag(np.linalg.inv(r))))
@@ -368,11 +376,14 @@ class BaySeg:
         return logp_r + logp_lam
 
     def propose_beta(self, beta_prev, beta_jump_length):
-        """
-        Proposes a perturbed beta based on a jump length hyperparameter.
-        :param beta_prev: Beta value to be perturbed.
-        :param beta_jump_length: Hyperparameter specifying the strength of the perturbation.
-        :return: Perturbed beta.
+        """Proposes a perturbed beta based on a jump length hyperparameter.
+
+        Args:
+            beta_prev:
+            beta_jump_length:
+
+        Returns:
+
         """
         # create proposal covariance depending on physical dimensionality
         # dim = [1, 4, 13]
@@ -383,11 +394,15 @@ class BaySeg:
         return multivariate_normal(mean=beta_prev, cov=sigma_prop).rvs()
 
     def propose_mu(self, mu_prev, mu_jump_length):
-        """
-        Proposes a perturbed mu matrix using a jump length hyperparameter.
-        :param mu_prev: The mu matrix to be perturbed.
-        :param mu_jump_length: Hyperparameter specifying the strength of the perturbation.
-        :return: Perturbed mu matrix.
+        """Proposes a perturbed mu matrix using a jump length hyperparameter.
+
+        Args:
+            mu_prev (:obj:`np.ndarray`): Previous mean array for all labels and features
+            mu_jump_length (float or int): Hyperparameter specifying the jump length for the new proposal mean array.
+
+        Returns:
+            :obj:`np.ndarray`: The newly proposed mean array.
+
         """
         # prepare matrix
         mu_prop = np.ones((self.n_labels, self.n_feat))
@@ -397,12 +412,16 @@ class BaySeg:
         return mu_prop
 
     def calc_sum_log_mixture_density(self, comp_coef, mu, cov):
-        """
-        Calculate sum of log mixture density with each observation at every element.
-        :param comp_coef: Component coefficient.
-        :param mu: Mean matrix
-        :param cov: Covariance matrix
-        :return: summed log mixture density of the system
+        """Calculate sum of log mixture density with each observation at every element.
+
+        Args:
+            comp_coef (:obj:`np.ndarray`): Component coefficient for each element (row) and label (column).
+            mu (:obj:`np.ndarray`): Mean value array for all labels and features.
+            cov (:obj:`np.ndarray`): Covariance matrix.
+
+        Returns:
+            float: Summed log mixture density.
+
         """
         lmd = np.zeros((len(self.coords), self.n_labels))
 
@@ -416,33 +435,51 @@ class BaySeg:
 
         return np.sum(lmd)
 
-    def calc_energy_like(self, mu, cov):
+    def calc_energy_like(self, mu, cov, vect=True):
+        """Calculates the energy likelihood for a given mean array and covariance matrix for the entire domain.
+
+        Args:
+            mu (:obj:`np.ndarray`):
+            cov (:obj:`np.ndarray`):
+            vect (bool, optional): Toggles the vectorized implementation. False activates the loop-based version if
+                you really dig a loss of speed of about 350 times.
+
+        Returns:
+            :obj:`np.ndarray` : Energy likelihood for each label at each element.
         """
-        Calculates the energy likelihood of the system.
-        Thanks a lot to Powei for helping with the Einstein summation notation!
-        :param mu: Mean values
-        :param cov: Covariance matrix
-        :return:
+        if vect:
+            energy_like_labels = np.zeros((len(self.coords), self.n_labels))
+
+            # uses flattened features array
+            for l in range(self.n_labels):
+                energy_like_labels[:, l] = np.einsum("...i,ji,...j", 0.5 * np.array([self.feat - mu[l, :]]),
+                                                     np.linalg.inv(cov[l, :, :]),
+                                                     np.array([self.feat - mu[l, :]])) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
+
+            return energy_like_labels
+
+        else:  # use the ~ 350 times slower version with loops!
+            energy_like_labels = np.zeros((len(self.coords), self.n_labels))
+            # print("energy like shp:", np.shape(energy_like_labels))
+
+            for x in range(len(self.coords)):
+                for l in range(self.n_labels):
+                    energy_like_labels[x, l] = 0.5 * np.array([self.feat[x] - mu[l, :]]) @ np.linalg.inv(
+                        cov[l, :, :]) @ np.array([self.feat[x] - mu[l, :]]).T + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
+
+            return energy_like_labels
+
+    def _calc_gibbs_energy_vect(self, labels, beta, verbose=False):
+        """Calculates the Gibbs energy for each element using the penalty factor(s) beta.
+
+        Args:
+            labels (:obj:`np.ndarray`):
+            beta (:obj:`np.array` of float):
+            verbose (bool):
+
+        Returns:
+            :obj:`np.ndarray` : Gibbs energy at every element for each label.
         """
-
-        energy_like_labels = np.zeros((len(self.coords), self.n_labels))
-
-        # uses flattened features array
-        for l in range(self.n_labels):
-            energy_like_labels[:, l] = np.einsum("...i,ji,...j", 0.5 * np.array([self.feat - mu[l, :]]),
-                                                 np.linalg.inv(cov[l, :, :]),
-                                                 np.array([self.feat - mu[l, :]])) + 0.5 * np.log(np.linalg.det(cov[l, :, :]))
-
-        return energy_like_labels
-
-    def _calc_gibbs_energy_vect(self, labels, beta, verbose=None):
-        """
-        Calculates Gibbs energy for each element using a penalty factor beta.
-        :param labels: flattened labels array!
-        :param beta:
-        :return: Gibbs energy matrix (n_obs times n_labels)
-        """
-
         # ************************************************************************************************
         if self.dim == 1:
             # tile
@@ -503,47 +540,47 @@ class BaySeg:
                                  + np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, :-2]).astype(float)
                                  + np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, 2:]).astype(float)) * beta
 
-            # left column
-            # right
-            ge[:, :, 0] += np.not_equal(comp[:, :, 0], labels[:, 1]).astype(float) * beta
-            # above
-            ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 1]).astype(float) * beta
-            # below
-            ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 1]).astype(float) * beta
-
-            # right column
-            # left
-            ge[:, :, -1] += np.not_equal(comp[:, :, -1], labels[:, -2]).astype(float) * beta
-            # above
-            ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -1]).astype(float) * beta
-            # below
-            ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -1]).astype(float) * beta
-
-            # top row
-            # below
-            ge[:, 0, :] += np.not_equal(comp[:, 0, :], labels[1, :]).astype(float) * beta
-            # right
-            ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[0, 1:]).astype(float) * beta
-            # left
-            ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[0, :-1]).astype(float) * beta
-
-            # bottom row
-            # above
-            ge[:, -1, :] += np.not_equal(comp[:, -1, :], labels[-2, :]).astype(float) * beta
-            # right
-            ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-1, 1:]).astype(float) * beta
-            # left
-            ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-1, :-1]).astype(float) * beta
-
-            # corners redo
-            # up left
-            ge[:, 0, 0] = (np.not_equal(comp[:, 0, 0], labels[1, 0]).astype(float) + np.not_equal(comp[:, 0, 0], labels[0, 1]).astype(float)) * beta
-            # low left
-            ge[:, -1, 0] = (np.not_equal(comp[:, -1, 0], labels[-1, 1]).astype(float) + np.not_equal(comp[:, -1, 0], labels[-2, 0]).astype(float)) * beta
-            # up right
-            ge[:, 0, -1] = (np.not_equal(comp[:, 0, -1], labels[1, -1]).astype(float) + np.not_equal(comp[:, 0, -1], labels[0, -2]).astype(float)) * beta
-            # low right
-            ge[:, -1, -1] = (np.not_equal(comp[:, -1, -1], labels[-2, -1]).astype(float) + np.not_equal(comp[:, -1, -1], labels[-1, -2]).astype(float)) * beta
+            # # left column
+            # # right
+            # ge[:, :, 0] += np.not_equal(comp[:, :, 0], labels[:, 1]).astype(float) * beta
+            # # above
+            # ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 1]).astype(float) * beta
+            # # below
+            # ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 1]).astype(float) * beta
+            #
+            # # right column
+            # # left
+            # ge[:, :, -1] += np.not_equal(comp[:, :, -1], labels[:, -2]).astype(float) * beta
+            # # above
+            # ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -1]).astype(float) * beta
+            # # below
+            # ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -1]).astype(float) * beta
+            #
+            # # top row
+            # # below
+            # ge[:, 0, :] += np.not_equal(comp[:, 0, :], labels[1, :]).astype(float) * beta
+            # # right
+            # ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[0, 1:]).astype(float) * beta
+            # # left
+            # ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[0, :-1]).astype(float) * beta
+            #
+            # # bottom row
+            # # above
+            # ge[:, -1, :] += np.not_equal(comp[:, -1, :], labels[-2, :]).astype(float) * beta
+            # # right
+            # ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-1, 1:]).astype(float) * beta
+            # # left
+            # ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-1, :-1]).astype(float) * beta
+            #
+            # # corners redo
+            # # up left
+            # ge[:, 0, 0] = (np.not_equal(comp[:, 0, 0], labels[1, 0]).astype(float) + np.not_equal(comp[:, 0, 0], labels[0, 1]).astype(float)) * beta
+            # # low left
+            # ge[:, -1, 0] = (np.not_equal(comp[:, -1, 0], labels[-1, 1]).astype(float) + np.not_equal(comp[:, -1, 0], labels[-2, 0]).astype(float)) * beta
+            # # up right
+            # ge[:, 0, -1] = (np.not_equal(comp[:, 0, -1], labels[1, -1]).astype(float) + np.not_equal(comp[:, 0, -1], labels[0, -2]).astype(float)) * beta
+            # # low right
+            # ge[:, -1, -1] = (np.not_equal(comp[:, -1, -1], labels[-2, -1]).astype(float) + np.not_equal(comp[:, -1, -1], labels[-1, -2]).astype(float)) * beta
 
             return ge.reshape(self.shape[0] * self.shape[1], self.n_labels)
 
@@ -553,8 +590,8 @@ class BaySeg:
             pass
 
     def mcr(self, true_labels):
-        """Compares classified with true labels for each iteration step (for synthetic data)
-        to obtain a measure of mismatch/convergence."""
+        """Compares classified with true labels for each iteration step (for synthetic data) to obtain a measure of
+        mismatch/convergence."""
         mcr_vals = []
         n = len(true_labels)
         # TODO: [2D] implementation for MCR
@@ -623,12 +660,17 @@ class BaySeg:
         plt.show()
 
     def diagnostics_plot(self, true_labels=None, ie_range=None):
-        """
-        Diagnostic plots for analyzing convergence: beta trace, correlation coefficient trace, labels trace and MCR.
-        :param true_labels: If given calculates and plots MCR
-        :return: Fancy figures
-        """
+        """Diagnostic plots for analyzing convergence and segmentation results.
 
+
+        Args:
+            true_labels (:obj:`np.ndarray`):
+            ie_range (:obj:`tuple` or :obj:`list`): Start and end point of iteration slice to used in the calculation
+                of the information entropy.
+
+        Returns:
+            Plot
+        """
         if true_labels is not None:
             fig = plt.figure(figsize=(15, 10))
             gs = gridspec.GridSpec(4, 2)
@@ -702,10 +744,15 @@ class BaySeg:
 
 
 def draw_labels_vect(labels_prob):
-    """
-    Vectorized draw of the label for each elements respective labels probability.
-    :param labels_prob: (n_elements x n_labels) ndarray containing the element-specific labels probabilites
-    :return: (n_elements)-long array of labels
+    """Vectorized draw of the label for each elements respective labels probability.
+
+    Args:
+        labels_prob (:obj:`np.ndarray`): (n_elements x n_labels) ndarray containing the element-specific labels
+            probabilites for each element.
+
+    Returns:
+        :obj:`np.array` : Flat array containing the newly drawn labels for each element.
+
     """
     # draw a random number between 0 and 1 for each element
     r = np.random.rand(len(labels_prob))
@@ -718,15 +765,19 @@ def draw_labels_vect(labels_prob):
 
 
 def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length):
-    """
-    Proposes a perturbed n-dimensional covariance matrix based on an existing one and a
-    covariance jump length and theta jump length parameter.
-    :param cov_prev: Covariance matrix to be perturbed.
-    :param n_feat: Number of features represented by the covariance matrix.
-    :param n_labels: Number of labels represented by the covariance matrix.
-    :param cov_jump_length: Parameter which roughly determines the strength of the covariance perturbation
-    :param theta_jump_length: Parameter which roughly determines the strength of the covariance perturbation
-    :return: Perturbed covariance matrix.
+    """Proposes a perturbed n-dimensional covariance matrix based on an existing one and a covariance jump length and
+    theta jump length parameter.
+
+    Args:
+        cov_prev (:obj:`np.ndarray`): Covariance matrix.
+        n_feat (int): Number of features.
+        n_labels (int): Number of labels.
+        cov_jump_length (float): Hyperparameter
+        theta_jump_length (float): Hyperparameter
+
+    Returns:
+        :obj:`np.ndarray` : Perturbed covariance matrix.
+
     """
     # do svd on the previous covariance matrix
     comb = list(combinations(range(n_feat), 2))
@@ -766,11 +817,16 @@ def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length)
 
 
 def _cov_proposal_rotation_matrix(x, y, theta):
-    """
-    Creates the rotation matrix needed for the covariance matrix proposal step.
-    :param x, y: two base vectors defining a plane
-    :param theta: rotation angle in this plane
-    :return: rotation matrix for covariance proposal step
+    """Creates the rotation matrix needed for the covariance matrix proposal step.
+
+    Args:
+        x (:obj:`np.array`): First base vector.
+        y (:obj:`np.array`): Second base vector.
+        theta (float): Rotation angle.
+
+    Returns:
+        :obj:`np.ndarray` : Rotation matrix for covariance proposal step.
+
     """
     x = np.array([x]).T
     y = np.array([y]).T
@@ -790,17 +846,17 @@ def _calc_labels_prob(te, t):
     return (np.exp(-te/t).T / np.sum(np.exp(-te/t), axis=1)).T
 
 
-# def _calc_log_prior_density(self, mu, rv_mu):
-#     """
-#     :param mu:
-#     :param rv_mu:
-#     :return:
-#     """
-#     return np.log(rv_mu.pdf(mu))
-
-
 def pseudocolor(coords_vector, extent, stamp=None):
-    """Graph coloring based on the physical dimensions for independent labels draw."""
+    """Graph coloring based on the physical dimensions for independent labels draw.
+
+    Args:
+        coords_vector:
+        extent:
+        stamp:
+
+    Returns:
+
+    """
     dim = np.shape(coords_vector)[1]
     # ************************************************************************************************
     # 1-DIMENSIONAL
@@ -851,11 +907,16 @@ def pseudocolor(coords_vector, extent, stamp=None):
 
 
 def bic(feat_vector, n_labels):
-    """
-    Initializes GMM using either a single n_labels, or does BIC analysis and choses best n_labels basedon
-    feature space.
-    :param feat_vector: (np.ndarray) containing the observations/features
-    :param n_labels: (int) maximum number of clusters considered in the BIC analysis
+    """Plots the Bayesian Information Criterion of Gaussian Mixture Models for the given features and range of labels
+    defined by the given upper boundary.
+
+    Args:
+        feat_vector (:obj:`np.ndarray`): Feature vector containing the data in a flattened format.
+        n_labels (int): Sets the included upper bound for the number of features to be considered in the analysis.
+
+    Returns:
+        Plot
+
     """
     n_comp = np.arange(1, n_labels+1)
     # create array of GMMs in range of components/labels and fit to observations
@@ -885,5 +946,6 @@ def bic(feat_vector, n_labels):
 
 
 def gibbs_comp_f(a, value):
+    """Helper function for the Gibbs energy calculation using Scipy's generic filter function."""
     a = a[a != -999.]
     return np.count_nonzero(a != value)

@@ -14,7 +14,7 @@ and expanding the implementation to two and three physical dimensions.
  
 ### Examples
 #### Segmentation of geophysical well log data
-![alt text](data/images/front_gif.gif)
+![alt text](data/figures/front_gif.gif)
 
 (Above well log data used from machine learning contest of [Hall, 2016](https://library.seg.org/doi/abs/10.1190/tle35100906.1))
 

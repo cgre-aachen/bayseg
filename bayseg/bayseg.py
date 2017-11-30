@@ -288,7 +288,8 @@ class BaySeg:
             log_target_prop = lmd_prop + lp_mu_prop
 
             # acceptance ratio
-            acc_ratio = np.exp(log_target_prop - log_target_prev)
+            with np.errstate(invalid='ignore'):
+                acc_ratio = np.exp(log_target_prop - log_target_prev)
             if verbose:
                 print("MU acceptance ratio:", acc_ratio)
 
@@ -375,7 +376,8 @@ class BaySeg:
 
     def log_prior_density_mu(self, mu, label):
         """Calculates the summed log prior density for a given mean and labels array."""
-        return np.sum(np.log(self.priors_mu[label].pdf(mu)))
+        with np.errstate(divide='ignore'):
+            return np.sum(np.log(self.priors_mu[label].pdf(mu)))
 
     def log_prior_density_beta(self, beta):
         """Calculates the log prior density for a given beta array."""
@@ -457,7 +459,8 @@ class BaySeg:
             multi = comp_coef[:, l] * np.array([draw])
             lmd[:, l] = multi
         lmd = np.sum(lmd, axis=1)
-        lmd = np.log(lmd)
+        with np.errstate(divide='ignore'):
+            lmd = np.log(lmd)
 
         return np.sum(lmd)
 
@@ -532,18 +535,22 @@ class BaySeg:
         # 2D
         elif self.dim == 2:
 
-            # print(labels.shape)
+            # reshape the labels to 2D for "stencil-application"
             labels = labels.reshape(self.shape[0], self.shape[1])
-            # print("labels shp:", labels.shape)
-            ge = np.tile(np.zeros_like(labels).astype(float), (3, 1, 1))
-            # print("ge shp:", ge.shape)
 
-            # comparison array
-            comp = np.tile(np.zeros_like(labels), (3, 1, 1)).astype(float)
+            # prepare gibbs energy array (filled with zeros)
+            ge = np.tile(np.zeros_like(labels).astype(float), (self.n_labels, 1, 1))
 
+            # create comparison array containing the different labels
+            comp = np.tile(np.zeros_like(labels), (self.n_labels, 1, 1)).astype(float)
             for i in range(self.n_labels):
                 comp[i, :, :] = i
-            # print("comp shp:", comp.shape)
+
+            # anisotropic beta directions
+            #  3  1  2
+            #   \ | /
+            #   --+-- 0
+            #   / | \
 
             # **********************************************************************************************************
             # direction 0 = 0° polar coord system
@@ -649,12 +656,13 @@ class BaySeg:
             if self.stencil is "8p":
                 ge[:, -1, -1] += np.not_equal(comp[:, -1, -1], labels[-2, -2]).astype(float) * beta[3]
 
+            # reshape and transpose gibbs energy, return
             return np.array([ge[l, :, :].ravel() for l in range(self.n_labels)]).T
 
         # ************************************************************************************************
         elif self.dim == 3:
             # TODO: [3D] implementation of gibbs energy
-            pass
+            raise Exception("3D not yet implemented.")
 
     def mcr(self, true_labels):
         """Compares classified with true labels for each iteration step (for synthetic data) to obtain a measure of
@@ -710,7 +718,10 @@ class BaySeg:
             # plot mus
             # ax[f, 0].set_title("MU, feature "+str(f))
             for l in range(self.n_labels):
-                ax[f, 0].plot(np.array(self.mus)[:, :, f][:, l], label="Label " + str(l))
+                if np.mean(np.array(self.mus)[:, :, f][:, l]) == -9999:
+                    continue
+                else:
+                    ax[f, 0].plot(np.array(self.mus)[:, :, f][:, l], label="Label " + str(l))
 
             # ax[f, 0].legend()
             ax[f, 0].set_ylabel("Feature " + str(f))
@@ -726,7 +737,7 @@ class BaySeg:
 
         plt.show()
 
-    def diagnostics_plot(self, true_labels=None, ie_range=None):
+    def diagnostics_plot(self, true_labels=None, ie_range=None, transpose=False):
         """Diagnostic plots for analyzing convergence and segmentation results.
 
 
@@ -796,22 +807,30 @@ class BaySeg:
                 a = ie_range[0]
                 b = ie_range[1]
 
-            lp = compute_prob_of_labels(self.labels[a:b])
+            lp = compute_prob_of_labels(np.array(self.labels[a:b]))
             max_lp = np.argmax(lp, axis=0)
             # print(max_lp)
 
             # PLOT LABELS
             ax3 = plt.subplot(gs[1, 0])
-            ax3.set_title("Labels (last iteration)")
-            ax3.imshow(np.array(max_lp.reshape(self.shape[0], self.shape[1])),
-                       cmap=cmap, norm=cmap_norm, aspect='auto', interpolation='nearest')
+            ax3.set_title("Labels (MAP)")
+            if transpose:
+                max_lp_plot = np.array(max_lp.reshape(self.shape[0], self.shape[1])).T
+            else:
+                max_lp_plot = np.array(max_lp.reshape(self.shape[0], self.shape[1]))
+            ax3.imshow(max_lp_plot, cmap=cmap, norm=cmap_norm, interpolation='nearest')
+            ax3.grid(False)
 
             # PLOT INFORMATION ENTROPY
             ie = calcualte_ie_masked(lp)  # calculate ie
             ax4 = plt.subplot(gs[1, 1])
             ax4.set_title("Information Entropy")
-            iep = ax4.imshow(ie.reshape(self.shape[0], self.shape[1]),
-                             cmap="viridis", aspect='auto', interpolation='nearest')
+            if transpose:
+                ie_plot = ie.reshape(self.shape[0], self.shape[1]).T
+            else:
+                ie_plot = ie.reshape(self.shape[0], self.shape[1])
+            iep = ax4.imshow(ie_plot, cmap="viridis", interpolation='nearest')
+            ax4.grid(False)
             plt.colorbar(iep)
 
         plt.show()

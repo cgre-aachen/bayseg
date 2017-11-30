@@ -4,9 +4,10 @@ import numpy as np
 def compute_prob_of_labels(labels):
     """Blocks must be just the lith blocks!"""
     l = np.unique(labels)
-    label_count = np.zeros_like(labels[0:len(l)])
+    label_count = np.zeros((len(l), labels.shape[1]))
     for i, l_id in enumerate(l):
-        label_count[i] = np.sum(labels == l_id, axis=0)
+
+        label_count[i,:] = np.sum(labels == l_id, axis=0)
     label_prob = label_count / len(labels)
     return label_prob
 

@@ -545,111 +545,109 @@ class BaySeg:
                 comp[i, :, :] = i
             # print("comp shp:", comp.shape)
 
-            # do the first two directions
-            ge[:, 1:-1, 1:-1] += (
-                                 np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 1:-1]).astype(float)  # compare with left
-                                 + np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 1:-1]).astype(float)) * beta[
-                                     0]  # compare with right
+            # **********************************************************************************************************
+            # direction 0 = 0° polar coord system
+            ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 1:-1]).astype(float)  # compare with left
+                                  + np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 1:-1]).astype(float)) * beta[0]  # compare with right
 
-            ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, :-2]).astype(
-                float)  # compare with above
-                                  + np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, 2:]).astype(float)) * beta[
-                                     1]  # compare with below
-
-            if self.stencil is "8p":
-                ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, :-2]).astype(
-                    float)  # compare with left up
-                                      + np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 2:]).astype(float)) * beta[
-                                         2]  # compare with right down
-
-                ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, :-2]).astype(
-                    float)  # compare with right up
-                                      + np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 2:]).astype(float)) * beta[
-                                         3]  # compare with left down
-
-            # ***********
             # left column
             # right
             ge[:, :, 0] += np.not_equal(comp[:, :, 0], labels[:, 1]).astype(float) * beta[0]
-            # above
-            ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 0]).astype(float) * beta[1]
-            # below
-            ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 0]).astype(float) * beta[1]
-
-            if self.stencil is "8p":
-                # right up
-                ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 1]).astype(float) * beta[3]
-                # right down
-                ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 1]).astype(float) * beta[2]
-
             # right column
             # left
             ge[:, :, -1] += np.not_equal(comp[:, :, -1], labels[:, -2]).astype(float) * beta[0]
-            # above
-            ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -1]).astype(float) * beta[1]
-            # below
-            ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -1]).astype(float) * beta[1]
-
-            if self.stencil is "8p":
-                # left up
-                ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -2]).astype(float) * beta[2]
-                # left down
-                ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -2]).astype(float) * beta[3]
-
-            # *******
             # top row
-            # below
-            ge[:, 0, :] += np.not_equal(comp[:, 0, :], labels[1, :]).astype(float) * beta[1]
             # right
             ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[0, 1:]).astype(float) * beta[0]
             # left
             ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[0, :-1]).astype(float) * beta[0]
-
-            if self.stencil is "8p":
-                # below left
-                ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[1, :-1]).astype(float) * beta[3]
-                # below right
-                ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[1, 1:]).astype(float) * beta[2]
-
             # bottom row
-            # above
-            ge[:, -1, :] += np.not_equal(comp[:, -1, :], labels[-2, :]).astype(float) * beta[1]
             # right
             ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-1, 1:]).astype(float) * beta[0]
             # left
             ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-1, :-1]).astype(float) * beta[0]
 
-            if self.stencil is "8p":
-                # above right
-                ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-2, 1:]).astype(float) * beta[3]
-                # above left
-                ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-2, :-1]).astype(float) * beta[2]
+            # **********************************************************************************************************
+            # direction 1 = 90° polar coord system
+            ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, :-2]).astype(float)  # compare with above
+                                  + np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, 2:]).astype(float)) * beta[1]  # compare with below
+            # left column
+            # above
+            ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 0]).astype(float) * beta[1]
+            # below
+            ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 0]).astype(float) * beta[1]
+            # right column
+            # above
+            ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -1]).astype(float) * beta[1]
+            # below
+            ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -1]).astype(float) * beta[1]
+            # top row
+            # below
+            ge[:, 0, :] += np.not_equal(comp[:, 0, :], labels[1, :]).astype(float) * beta[1]
+            # bottom row
+            # above
+            ge[:, -1, :] += np.not_equal(comp[:, -1, :], labels[-2, :]).astype(float) * beta[1]
 
-            # ************
-            # corners redo
+            # **********************************************************************************************************
+            # direction 2 = 45° polar coord system
+            if self.stencil is "8p":
+                ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, :-2]).astype(float)  # compare with right up
+                                      + np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 2:]).astype(float)) * beta[2]  # compare with left down
+                # left column
+                # right up
+                ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 1]).astype(float) * beta[2]
+                # right column
+                # left down
+                ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -2]).astype(float) * beta[2]
+                # top row
+                # below left
+                ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[1, :-1]).astype(float) * beta[2]
+                # bottom row
+                # above right
+                ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-2, 1:]).astype(float) * beta[2]
+            # **********************************************************************************************************
+            # direction 3 = 135° polar coord system
+            if self.stencil is "8p":
+                ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, :-2]).astype(float)  # compare with left up
+                                      + np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 2:]).astype(float)) * beta[3]  # compare with right down
+                # left column
+                # right down
+                ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 1]).astype(float) * beta[3]
+                # right column
+                # left up
+                ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -2]).astype(float) * beta[3]
+                # top row
+                # below right
+                ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[1, 1:]).astype(float) * beta[3]
+                # bottom row
+                # above left
+                ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-2, :-1]).astype(float) * beta[3]
+
+            # **********************************************************************************************************
+            # overwrite corners
             # up left
             ge[:, 0, 0] = np.not_equal(comp[:, 0, 0], labels[1, 0]).astype(float) * beta[1] \
                           + np.not_equal(comp[:, 0, 0], labels[0, 1]).astype(float) * beta[0]
             if self.stencil is "8p":
-                ge[:, 0, 0] += np.not_equal(comp[:, 0, 0], labels[1, 1]).astype(float) * beta[2]
+                ge[:, 0, 0] += np.not_equal(comp[:, 0, 0], labels[1, 1]).astype(float) * beta[3]
 
             # low left
             ge[:, -1, 0] = np.not_equal(comp[:, -1, 0], labels[-1, 1]).astype(float) * beta[0] \
                            + np.not_equal(comp[:, -1, 0], labels[-2, 0]).astype(float) * beta[1]
             if self.stencil is "8p":
-                ge[:, -1, 0] += np.not_equal(comp[:, -1, 0], labels[-2, 1]).astype(float) * beta[3]
+                ge[:, -1, 0] += np.not_equal(comp[:, -1, 0], labels[-2, 1]).astype(float) * beta[2]
 
             # up right
             ge[:, 0, -1] = np.not_equal(comp[:, 0, -1], labels[1, -1]).astype(float) * beta[1] \
                            + np.not_equal(comp[:, 0, -1], labels[0, -2]).astype(float) * beta[0]
             if self.stencil is "8p":
-                ge[:, 0, -1] += np.not_equal(comp[:, 0, -1], labels[1, -2]).astype(float) * beta[3]
+                ge[:, 0, -1] += np.not_equal(comp[:, 0, -1], labels[1, -2]).astype(float) * beta[2]
 
             # low right
             ge[:, -1, -1] = np.not_equal(comp[:, -1, -1], labels[-2, -1]).astype(float) * beta[1] \
                             + np.not_equal(comp[:, -1, -1], labels[-1, -2]).astype(float) * beta[0]
             if self.stencil is "8p":
-                ge[:, -1, -1] += np.not_equal(comp[:, -1, -1], labels[-2, -2]).astype(float) * beta[2]
+                ge[:, -1, -1] += np.not_equal(comp[:, -1, -1], labels[-2, -2]).astype(float) * beta[3]
 
             return np.array([ge[l, :, :].ravel() for l in range(self.n_labels)]).T
 
@@ -752,8 +750,11 @@ class BaySeg:
         # plot beta
         ax1 = plt.subplot(gs[0, :-1])
         ax1.set_title(r"$\beta$")
-        ax1.plot(self.betas, label="beta", color="black", linewidth=1)
+        betas = np.array(self.betas)
+        for b in range(betas.shape[1]):
+            ax1.plot(betas[:, b], label="beta "+str(b), linewidth=1)
         ax1.set_xlabel("Iterations")
+        ax1.legend()
 
         # plot correlation coefficient
         ax2 = plt.subplot(gs[0, -1])

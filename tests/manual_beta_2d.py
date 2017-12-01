@@ -21,7 +21,7 @@ obs = observations.T
 clf = bayseg.BaySeg(obs, 3, beta_init=0.1)
 
 # fit
-clf.fit(150, beta_jump_length=0.01)
+clf.fit(100, beta_jump_length=0.01)
 
 clf.diagnostics_plot()
 clf.plot_mu_stdev()

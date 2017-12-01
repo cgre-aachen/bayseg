@@ -696,31 +696,21 @@ class BaySeg:
         return corr_coefs
 
     def plot_mu_stdev(self):
-        """
-        Plot the mu and stdev for each label for each feature.
-        :return: Fancy figures
-        """
+        """Plot mean and standard deviation over all iterations."""
         fig, ax = plt.subplots(nrows=self.n_feat, ncols=2, figsize=(15, 5 * self.n_feat))
 
         ax[0, 0].set_title(r"$\mu$")
         ax[0, 1].set_title(r"$\sigma$")
-        # ax[0, 0].legend()
 
         for f in range(self.n_feat):
-
-            # plot mus
-            # ax[f, 0].set_title("MU, feature "+str(f))
             for l in range(self.n_labels):
                 if np.mean(np.array(self.mus)[:, :, f][:, l]) == -9999:
                     continue
                 else:
                     ax[f, 0].plot(np.array(self.mus)[:, :, f][:, l], label="Label " + str(l))
 
-            # ax[f, 0].legend()
             ax[f, 0].set_ylabel("Feature " + str(f))
 
-            # plot covs
-            # ax[f, 1].set_title("STDEV, feature " + str(f))
             for l in range(self.n_labels):
                 ax[f, 1].plot(self.get_std_from_cov(f, l), label="Label " + str(l))
 
@@ -731,6 +721,7 @@ class BaySeg:
         plt.show()
 
     def plot_acc_ratios(self, linewidth=1):
+        """Plot acceptance ratios for beta, mu and covariance."""
         fig, ax = plt.subplots(ncols=3, figsize=(15, 4))
 
         ax[0].set_title(r"$\beta$")
@@ -817,7 +808,7 @@ class BaySeg:
                 a = ie_range[0]
                 b = ie_range[1]
 
-            max_lp = labels_map(self.labels, r=(a,b))
+            max_lp = labels_map(self.labels, r=(a, b))
             # print(max_lp)
 
             # PLOT LABELS
@@ -831,7 +822,7 @@ class BaySeg:
             ax3.grid(False)
 
             # PLOT INFORMATION ENTROPY
-            ie = calcualte_ie_masked(lp)  # calculate ie
+            ie = compute_ie(compute_labels_prob(np.array(self.labels[a:b])))  # calculate ie
             ax4 = plt.subplot(gs[1, 1])
             ax4.set_title("Information Entropy")
             if transpose:
@@ -852,7 +843,7 @@ def labels_map(labels, r=None):
     if r is None:
         r = (0, -1)
 
-    lp = compute_prob_of_labels(np.array(labels[r[0]:r[1]]))
+    lp = compute_labels_prob(np.array(labels[r[0]:r[1]]))
     return np.argmax(lp, axis=0)
 
 

@@ -31,11 +31,6 @@ def test_1d_dim(bayseg_1d):
     assert bayseg_1d.dim == 1
 
 
-def test_1d_coordinates_vector(bayseg_1d):
-    """Test the shape of the coordinates vector."""
-    assert np.shape(bayseg_1d.coords) == (500, 1)
-
-
 def test_1d_features_vector(bayseg_1d):
     """Test the shape of the features vector."""
     assert np.shape(bayseg_1d.feat) == (500, 4)
@@ -43,8 +38,7 @@ def test_1d_features_vector(bayseg_1d):
 
 def test_1d_pseudocolors(bayseg_1d):
     """Test the pseudocoloring for 1d data."""
-    c = bayseg_1d.colors == np.array([np.arange(0, 500, step=2), np.arange(1, 500, step=2)]).T
-    assert c.all()
+    assert (bayseg_1d.colors == np.array([np.arange(0, 500, step=2), np.arange(1, 500, step=2)]).T).all()
 
 
 def test_1d_gibbs_energy(bayseg_1d):

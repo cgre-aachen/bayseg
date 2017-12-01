@@ -9,13 +9,13 @@ from bayseg import BaySeg
 def bayseg_2d_4s():
     """Create a 2d 4-stamp """
     obs = np.ones((4, 4, 4))
-    return BaySeg(obs, 3, stencil=4)
+    return BaySeg(obs, 3, stencil="4p")
 
 
 @pytest.fixture
 def bayseg_2d_8s():
     obs = np.ones((4, 4, 4))
-    return BaySeg(obs, 3, stencil=8)
+    return BaySeg(obs, 3, stencil="8p")
 
 
 def test_2d_gibbs_energy(bayseg_2d_4s):

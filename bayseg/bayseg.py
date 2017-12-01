@@ -26,15 +26,13 @@ import tqdm  # smart-ish progress bar
 import matplotlib.pyplot as plt  # 2d plotting
 from matplotlib import gridspec, rcParams  # plot arrangements
 from .colors import cmap, cmap_norm  # custom colormap
+from .ie import *
 
 plt.style.use('bmh')  # plot style
-# from functools import partial
-# from scipy.ndimage import generic_filter
-from .ie import *
 
 
 class BaySeg:
-    def __init__(self, data, n_labels, beta_init=1, stencil=None):
+    def __init__(self, data, n_labels, beta_init=1, stencil=None, normalize=True):
         """
 
         Args:
@@ -99,6 +97,9 @@ class BaySeg:
         else:
             raise Exception("Data format appears to be wrong (neither 1-, 2- or 3-D).")
 
+        if normalize:
+            self.normalize_feature_vectors()
+
         # ************************************************************************************************
         # INIT STORAGE ARRAYS
 
@@ -127,6 +128,10 @@ class BaySeg:
         self.storage_gibbs_e = []
         self.storage_like_e = []
         self.storage_te = []
+
+        self.beta_acc_ratio = np.array([])
+        self.cov_acc_ratio = np.array([])
+        self.mu_acc_ratio = np.array([])
 
         # ************************************************************************************************
         # Initialize PRIOR distributions for beta, mu and covariance
@@ -287,15 +292,12 @@ class BaySeg:
             log_target_prev = lmd_prev + lp_mu_prev
             log_target_prop = lmd_prop + lp_mu_prop
 
-            # acceptance ratio
-            with np.errstate(invalid='ignore'):
-                acc_ratio = np.exp(log_target_prop - log_target_prev)
-            if verbose:
-                print("MU acceptance ratio:", acc_ratio)
-
-            if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
-                # replace old with new if accepted
+            mu_eval = evaluate(log_target_prop, log_target_prev)
+            if mu_eval[0]:
                 mu_next[l, :] = mu_prop[l, :]
+            else:
+                pass
+            self.mu_acc_ratio = np.append(self.mu_acc_ratio, mu_eval[1])
 
         self.mus.append(mu_next)
 
@@ -323,16 +325,12 @@ class BaySeg:
             log_target_prev = lmd_prev + lp_cov_prev
             log_target_prop = lmd_prop + lp_cov_prop
 
-            # acceptance ratio
-            acc_ratio = np.exp(log_target_prop - log_target_prev)
-            if verbose:
-                print("COV acceptance ratio:", acc_ratio)
-            # print("cov acc ratio", acc_ratio)
-            random = np.random.uniform()
-            # print("cov rand acc", random)
-            if (acc_ratio > 1) or (random < acc_ratio):
-                # replace old with new if accepted
+            mu_eval = evaluate(log_target_prop, log_target_prev)
+            if mu_eval[0]:
                 cov_next[l, :] = cov_prop[l, :]
+            else:
+                pass
+            self.cov_acc_ratio = np.append(self.cov_acc_ratio, mu_eval[1])
 
         # append cov and mu
         self.covs.append(cov_next)
@@ -360,16 +358,24 @@ class BaySeg:
             # print("lp_beta_prop:", lp_beta_prop)
             log_target_prop = lmd_prop + lp_beta_prop
 
-            acc_ratio = np.exp(log_target_prop - log_target_prev)
-            # print("beta acc_ratio:", acc_ratio)
-
-            if verbose:
-                print("BETA acceptance ratio:", acc_ratio)
-
-            if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
+            mu_eval = evaluate(log_target_prop, log_target_prev)
+            if mu_eval[0]:
                 self.betas.append(beta_prop)
             else:
                 self.betas.append(self.betas[-1])
+            self.beta_acc_ratio = np.append(self.beta_acc_ratio, mu_eval[1])  # store
+
+            # acc_ratio = np.exp(log_target_prop - log_target_prev)
+            # # print("beta acc_ratio:", acc_ratio)
+            #
+            # if verbose:
+            #     print("BETA acceptance ratio:", acc_ratio)
+            #
+            # if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
+            #     self.betas.append(beta_prop)
+            # else:
+            #     self.betas.append(self.betas[-1])
+
         else:
             self.betas.append(self.betas[-1])
             # ************************************************************************************************
@@ -464,7 +470,7 @@ class BaySeg:
 
         return np.sum(lmd)
 
-    def calc_energy_like(self, mu, cov, vect=True):
+    def calc_energy_like(self, mu, cov):
         """Calculates the energy likelihood for a given mean array and covariance matrix for the entire domain.
 
         Args:
@@ -476,30 +482,17 @@ class BaySeg:
         Returns:
             :obj:`np.ndarray` : Energy likelihood for each label at each element.
         """
-        if vect:
-            energy_like_labels = np.zeros((self.phys_shp.prod(), self.n_labels))
+        energy_like_labels = np.zeros((self.phys_shp.prod(), self.n_labels))
 
-            # uses flattened features array
-            for l in range(self.n_labels):
-                energy_like_labels[:, l] = np.einsum("...i,ji,...j",
-                                                     0.5 * np.array([self.feat - mu[l, :]]),
-                                                     np.linalg.inv(cov[l, :, :]),
-                                                     np.array([self.feat - mu[l, :]])) + 0.5 * np.log(
-                    np.linalg.det(cov[l, :, :]))
+        # uses flattened features array
+        for l in range(self.n_labels):
+            energy_like_labels[:, l] = np.einsum("...i,ji,...j",
+                                                 0.5 * np.array([self.feat - mu[l, :]]),
+                                                 np.linalg.inv(cov[l, :, :]),
+                                                 np.array([self.feat - mu[l, :]])) + 0.5 * np.log(
+                np.linalg.det(cov[l, :, :]))
 
-            return energy_like_labels
-
-        else:  # use the ~ 350 times slower version with loops!
-            energy_like_labels = np.zeros((self.phys_shp.prod(), self.n_labels))
-            # print("energy like shp:", np.shape(energy_like_labels))
-
-            for x in range(self.phys_shp.prod()):
-                for l in range(self.n_labels):
-                    energy_like_labels[x, l] = 0.5 * np.array([self.feat[x] - mu[l, :]]) @ np.linalg.inv(
-                        cov[l, :, :]) @ np.array([self.feat[x] - mu[l, :]]).T + 0.5 * np.log(
-                        np.linalg.det(cov[l, :, :]))
-
-            return energy_like_labels
+        return energy_like_labels
 
     def _calc_gibbs_energy_vect(self, labels, beta, verbose=False):
         """Calculates the Gibbs energy for each element using the penalty factor(s) beta.
@@ -737,6 +730,18 @@ class BaySeg:
 
         plt.show()
 
+    def plot_acc_ratios(self, linewidth=1):
+        fig, ax = plt.subplots(ncols=3, figsize=(15, 4))
+
+        ax[0].set_title(r"$\beta$")
+        ax[0].plot(self.beta_acc_ratio, linewidth=linewidth, color="black")
+
+        ax[1].set_title(r"$\mu$")
+        ax[1].plot(self.mu_acc_ratio, linewidth=linewidth, color="red")
+
+        ax[2].set_title("Covariance")
+        ax[2].plot(self.cov_acc_ratio, linewidth=linewidth, color="indigo")
+
     def diagnostics_plot(self, true_labels=None, ie_range=None, transpose=False):
         """Diagnostic plots for analyzing convergence and segmentation results.
 
@@ -761,9 +766,14 @@ class BaySeg:
         # plot beta
         ax1 = plt.subplot(gs[0, :-1])
         ax1.set_title(r"$\beta$")
+
         betas = np.array(self.betas)
-        for b in range(betas.shape[1]):
-            ax1.plot(betas[:, b], label="beta "+str(b), linewidth=1)
+        if self.dim == 1:
+            ax1.plot(betas, label="beta", linewidth=1)
+        else:
+            for b in range(betas.shape[1]):
+                ax1.plot(betas[:, b], label="beta "+str(b), linewidth=1)
+
         ax1.set_xlabel("Iterations")
         ax1.legend()
 
@@ -807,8 +817,7 @@ class BaySeg:
                 a = ie_range[0]
                 b = ie_range[1]
 
-            lp = compute_prob_of_labels(np.array(self.labels[a:b]))
-            max_lp = np.argmax(lp, axis=0)
+            max_lp = labels_map(self.labels, r=(a,b))
             # print(max_lp)
 
             # PLOT LABELS
@@ -835,6 +844,17 @@ class BaySeg:
 
         plt.show()
 
+    def normalize_feature_vectors(self):
+        return (self.feat - np.mean(self.feat, axis=0).T) / np.std(self.feat, axis=0)
+
+
+def labels_map(labels, r=None):
+    if r is None:
+        r = (0, -1)
+
+    lp = compute_prob_of_labels(np.array(labels[r[0]:r[1]]))
+    return np.argmax(lp, axis=0)
+
 
 def draw_labels_vect(labels_prob):
     """Vectorized draw of the label for each elements respective labels probability.
@@ -855,6 +875,17 @@ def draw_labels_vect(labels_prob):
     d = (p.T - r).T
     # compare and count to get label
     return np.count_nonzero(np.greater_equal(0, d), axis=1)
+
+
+def evaluate(log_target_prop, log_target_prev):
+
+    ratio = np.exp(np.longfloat(log_target_prop - log_target_prev))
+
+    if (ratio > 1) or (np.random.uniform() < ratio):
+        return True, ratio  # if accepted
+
+    else:
+        return False, ratio  # if rejected
 
 
 def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length):

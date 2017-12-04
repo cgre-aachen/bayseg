@@ -11,7 +11,7 @@
 + [Introduction](#introduction)
 + [Examples](#examples)
   - [1D: Segmentation of geophysical well log data](#1d-segmentation-of-geophysical-well-log-data)
-  - [2D: Anisotropic spatial segmentation](#2d-anisotropic-spatial-segmentation)
+  - [2D: Combined segmentation of geophysical and remote sensing data](#2d-combined-segmentation-of-geophysical-and-remote-sensing-data)
 + [Installation](#installation)
   - [Dependencies](#dependencies)
   - [Cloning directly from GitHub](#cloning-directly-from-github)
@@ -30,7 +30,7 @@ and expanding the implementation to two and three physical dimensions.
  
 ## Examples
 
-[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/cgre-aachen/bayseg/master?filepath=notebooks%2Ftr32_presentation_example.ipynb)
+
 
 ### 1D: Segmentation of geophysical well log data
 
@@ -38,8 +38,11 @@ and expanding the implementation to two and three physical dimensions.
 
 (Above well log data used from machine learning contest of [Hall, 2016](https://library.seg.org/doi/abs/10.1190/tle35100906.1))
 
-### 2D: Anisotropic spatial segmentation
+### 2D: Combined segmentation of geophysical and remote sensing data
 
+You can try out how BaySeg segments 2D data sets by using an interactive Jupyter Notebook in your own web browser, enabled by Binder:
+
+[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/cgre-aachen/bayseg/master?filepath=notebooks%2Ftr32_presentation_example.ipynb)
 
 
 ## Installation
@@ -90,5 +93,5 @@ Then use the _fit()_ method to classify your data with your desired number of it
 ## Contact
 
 The library is being developed by [Alexander Schaaf](https://www.researchgate.net/profile/Alexander_Schaaf4) and 
-[Hui Wang](https://www.researchgate.net/profile/Hui_Wang122) from the LuFG Computational Geoscience and Reservoir 
+[Hui Wang](https://www.researchgate.net/profile/Hui_Wang122) from the LuF Computational Geoscience and Reservoir 
 Engineering (CGRE) and the Aachen Institute for Advanced Study in Computational Engineering Science (AICES) at RWTH Aachen University.

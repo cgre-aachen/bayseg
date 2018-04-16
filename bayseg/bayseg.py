@@ -867,7 +867,6 @@ def draw_labels_vect(labels_prob):
     p = np.cumsum(labels_prob, axis=1)
     # calculate difference between random draw and cumsum probabilities
     d = (p.T - r).T
-    print(d)
     # compare and count to get label
     return np.sum(np.greater_equal(0, d), axis=1)
 

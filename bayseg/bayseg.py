@@ -37,7 +37,7 @@ class BaySeg:
 
         Args:
             data (:obj:`np.ndarray`): Multidimensional data array containing all observations (features) in the
-                following format:
+                following shape:
 
                     1D = (Y, F)
                     2D = (Y, X, F)
@@ -237,9 +237,12 @@ class BaySeg:
 
         # make copy of previous labels
         new_labels = copy(self.labels[-1])
+        # new_labels = np.empty_like(self.labels[-1])
 
         for i, color_f in enumerate(self.colors):
+            # print(np.average(new_labels))
             new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
+            # print(np.average(new_labels))
             # now recalculate gibbs energy and other energies from the mixture of old and new labels
             gibbs_energy = self._calc_gibbs_energy_vect(new_labels, self.betas[-1], verbose=verbose)
             total_energy = energy_like + gibbs_energy  # + self_energy
@@ -864,8 +867,9 @@ def draw_labels_vect(labels_prob):
     p = np.cumsum(labels_prob, axis=1)
     # calculate difference between random draw and cumsum probabilities
     d = (p.T - r).T
+    print(d)
     # compare and count to get label
-    return np.count_nonzero(np.greater_equal(0, d), axis=1)
+    return np.sum(np.greater_equal(0, d), axis=1)
 
 
 def evaluate(log_target_prop, log_target_prev):

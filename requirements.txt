@@ -1,7 +1,7 @@
-pytest==3.2.1
-scipy==0.19.1
-numpy==1.13.3
-pandas==0.20.3
-matplotlib==2.1.0
-tqdm==4.19.4
-scikit_learn==0.19.1
+pytest
+scipy
+numpy
+pandas
+matplotlib
+tqdm
+scikit_learn

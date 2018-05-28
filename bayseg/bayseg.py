@@ -118,16 +118,16 @@ class BaySeg:
         # ************************************************************************************************
         # INIT LABELS, MU and COV based on GMM
         # TODO: [GENERAL] storage variables from lists to numpy ndarrays
-        self.labels = [self.gmm.predict(self.feat)]
+        self.labels = np.array([self.gmm.predict(self.feat)])
         # INIT MU (mean from initial GMM)
-        self.mus = [self.gmm.means_]
+        self.mus = np.array([self.gmm.means_])
         # INIT COV (covariances from initial GMM)
-        self.covs = [self.gmm.covariances_]
+        self.covs = np.array([self.gmm.covariances_])
 
-        self.labels_probability = []
-        self.storage_gibbs_e = []
-        self.storage_like_e = []
-        self.storage_te = []
+        self.labels_probability = np.zeros((1, self.labels.shape[1], self.n_labels))
+        self.storage_gibbs_e = np.zeros([1, self.labels.shape[1], self.n_labels])
+        self.storage_like_e = np.zeros([1, self.labels.shape[1], self.n_labels])
+        self.storage_te = np.zeros([1, self.labels.shape[1], self.n_labels])
 
         self.beta_acc_ratio = np.array([])
         self.cov_acc_ratio = np.array([])
@@ -232,8 +232,7 @@ class BaySeg:
         labels_prob = _calc_labels_prob(total_energy, t)
         if verbose == "energy":
             print("Labels probability:", labels_prob)
-
-        self.storage_te.append(total_energy)
+        self.storage_te = np.append(self.storage_te, total_energy[np.newaxis, :, :], axis=0)
 
         # make copy of previous labels
         new_labels = copy(self.labels[-1])
@@ -248,8 +247,8 @@ class BaySeg:
             total_energy = energy_like + gibbs_energy  # + self_energy
             labels_prob = _calc_labels_prob(total_energy, t)
 
-        self.labels_probability.append(labels_prob)
-        self.labels.append(new_labels)
+        self.labels_probability = np.append(self.labels_probability, labels_prob[np.newaxis, :, :], axis=0)
+        self.labels = np.append(self.labels, new_labels[np.newaxis, :], axis=0)
 
         # ************************************************************************************************
         # calculate energy for component coefficient
@@ -302,7 +301,7 @@ class BaySeg:
                 pass
             self.mu_acc_ratio = np.append(self.mu_acc_ratio, mu_eval[1])
 
-        self.mus.append(mu_next)
+        self.mus = np.append(self.mus, mu_next[np.newaxis, :, :], axis=0)
 
         # ************************************************************************************************
         # UPDATE COVARIANCE
@@ -336,9 +335,9 @@ class BaySeg:
             self.cov_acc_ratio = np.append(self.cov_acc_ratio, mu_eval[1])
 
         # append cov and mu
-        self.covs.append(cov_next)
-        self.storage_gibbs_e.append(gibbs_energy)
-        self.storage_like_e.append(energy_like)
+        self.covs = np.append(self.covs, cov_next[np.newaxis, :, :], axis=0)
+        self.storage_gibbs_e = np.append(self.storage_gibbs_e, gibbs_energy[np.newaxis, :, :], axis=0)
+        self.storage_like_e = np.append(self.storage_like_e, energy_like[np.newaxis, :], axis=0)
 
         if not fix_beta:
             # ************************************************************************************************

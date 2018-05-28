@@ -12,7 +12,7 @@ obs, latent_1d = create_testing_data.create_1d_data()
 clf = bayseg.BaySeg(obs, 3, beta_init=1)
 
 # FIT
-clf.fit(50, beta_jump_length=5, verbose=False)
+clf.fit(100, beta_jump_length=5, verbose=False)
 
 # *******************************************
 verbose = False

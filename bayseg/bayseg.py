@@ -101,14 +101,6 @@ class BaySeg:
             self.normalize_feature_vectors()
 
         # ************************************************************************************************
-        # INIT STORAGE ARRAYS
-
-        # self.betas = [beta_init]  # initial beta
-        # self.mus = np.array([], dtype=object)
-        # self.covs = np.array([], dtype=object)
-        # self.labels = np.array([], dtype=object)
-
-        # ************************************************************************************************
         # INIT GAUSSIAN MIXTURE MODEL
         self.n_labels = n_labels
         self.gmm = mixture.GaussianMixture(n_components=n_labels, covariance_type="full")
@@ -478,8 +470,6 @@ class BaySeg:
         Args:
             mu (:obj:`np.ndarray`):
             cov (:obj:`np.ndarray`):
-            vect (bool, optional): Toggles the vectorized implementation. False activates the loop-based version if
-                you really dig a loss of speed of about 350 times.
 
         Returns:
             :obj:`np.ndarray` : Energy likelihood for each label at each element.
@@ -995,6 +985,12 @@ def pseudocolor(shape, stencil=None):
             colors = 4
             # color image
             colored_image = np.tile(np.kron([[0, 1], [2, 3]] * int(shape[0] / 2), np.ones((1, 1))), int(shape[1] / 2))
+
+            if shape[0] % 2 != 0:
+                colored_image = np.append(colored_image, colored_image[-2, :][np.newaxis, :], axis=0)
+            if shape[1] % 2 != 0:
+                colored_image = np.append(colored_image, colored_image[:, -2][:, np.newaxis], axis=1)
+
             colored_flat = colored_image.reshape(shape[0] * shape[1])
 
             # initialize storage array
@@ -1009,6 +1005,12 @@ def pseudocolor(shape, stencil=None):
             colors = 2
             # color image
             colored_image = np.tile(np.kron([[0, 1], [1, 0]] * int(shape[0] / 2), np.ones((1, 1))), int(shape[1] / 2))
+
+            if shape[0] % 2 != 0:
+                colored_image = np.append(colored_image, colored_image[-2, :][np.newaxis, :], axis=0)
+            if shape[1] % 2 != 0:
+                colored_image = np.append(colored_image, colored_image[:, -2][:, np.newaxis], axis=1)
+
             colored_flat = colored_image.reshape(shape[0] * shape[1])
 
             # initialize storage array

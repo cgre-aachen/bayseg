@@ -21,7 +21,7 @@ def create_1d_data():
     i = 4
     c1 = scipy.stats.multivariate_normal([7, 9, 10, 2.7], np.eye(i) * 0.35)
     c2 = scipy.stats.multivariate_normal([8, 8, 9.5, 2], np.eye(i) * 0.55)
-    c3 = scipy.stats.multivariate_normal([10, 9.5, 9, 1.5], np.eye(i) * 10.25)
+    c3 = scipy.stats.multivariate_normal([10, 9.5, 9, 1.5], np.eye(i) * 1.25)
 
     obs = np.empty((len(coords[:, 0]), 4))
 

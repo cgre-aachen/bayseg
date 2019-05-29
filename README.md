@@ -91,6 +91,11 @@ Then use the _fit()_ method to classify your data with your desired number of it
 
 ## Contact
 
-The library is being developed by [Alexander Schaaf](https://www.researchgate.net/profile/Alexander_Schaaf4) and 
-[Hui Wang](https://www.researchgate.net/profile/Hui_Wang122) from the LuF Computational Geoscience and Reservoir 
-Engineering (CGRE) and the Aachen Institute for Advanced Study in Computational Engineering Science (AICES) at RWTH Aachen University.
+The library is based on research [Hui Wang](https://www.researchgate.net/profile/Hui_Wang122) and [Florian Wellmann](http://www.cgre.rwth-aachen.de/go/id/qpan/lidx/1/gguid/0x5440F5A53D654C41874F09C577FE4005) for a research project in the German Collaborative Research Center [SFB TR32](http://www.tr32db.uni-koeln.de/site/index.php). It was rewritten in Python from a Matlab code by [Alexander Schaaf](https://www.researchgate.net/profile/Alexander_Schaaf4).
+
+Bayseg is currently being developed by the LuF Computational Geoscience and Reservoir 
+Engineering (CGRE) and the Aachen Institute for Advanced Study in Computational Engineering Science (AICES) at RWTH Aachen University, Germany.
+
+For more information and contacts, please see: http://www.cgre.rwth-aachen.de/
+
+

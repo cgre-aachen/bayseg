@@ -98,4 +98,4 @@ Engineering (CGRE) and the Aachen Institute for Advanced Study in Computational 
 
 For more information and contacts, please see: http://www.cgre.rwth-aachen.de/
 
-
+![CGRE RWTH Aachen](data/figures/rwth_geoscience_rgb.jpg)

@@ -828,7 +828,7 @@ class BaySeg:
         plt.show()
 
     def normalize_feature_vectors(self):
-        return (self.feat - np.mean(self.feat, axis=0).T) / np.std(self.feat, axis=0)
+        self.feat = (self.feat - np.mean(self.feat, axis=0).T) / np.std(self.feat, axis=0)
 
 
 def labels_map(labels, r=None):

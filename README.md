@@ -88,6 +88,8 @@ Then use the _fit()_ method to classify your data with your desired number of it
 
 * Wang, H., Wellmann, J. F., Li, Z., Wang, X., & Liang, R. Y. (2017). A Segmentation Approach for Stochastic Geological Modeling Using Hidden Markov Random Fields. Mathematical Geosciences, 49(2), 145-177.
 * Wang, H., Wellmann, F., Zhang, T., Schaaf, A., Kanig, R. M., Verweij, E., ... & van der Kruk, J. (2019). Pattern Extraction of Topsoil and Subsoil Heterogeneity and Soil‐Crop Interaction Using Unsupervised Bayesian Machine Learning: An Application to Satellite‐Derived NDVI Time Series and Electromagnetic Induction Measurements. Journal of Geophysical Research: Biogeosciences.
+* Wang, H. (2020). Finding patterns in subsurface using Bayesian machine learning approach. Underground Space, 5(1), 84-92.
+* Herbert, C., Camps, A., Wellmann, F., & Vall‐llossera, M. (2021). Bayesian unsupervised machine learning approach to segment Arctic sea ice using SMOS data. Geophysical Research Letters, 48(6).
 * Hall, B. (2016). Facies classification using machine learning. The Leading Edge, 35(10), 906-909.
 
 ## Contact

@@ -862,7 +862,7 @@ def draw_labels_vect(labels_prob):
 
 def evaluate(log_target_prop, log_target_prev):
 
-    ratio = np.exp(np.longfloat(log_target_prop - log_target_prev))
+    ratio = np.exp(np.longdouble(log_target_prop - log_target_prev))
 
     if (ratio > 1) or (np.random.uniform() < ratio):
         return True, ratio  # if accepted

@@ -474,22 +474,29 @@ class BaySeg:
         """Calculates the energy likelihood for a given mean array and covariance matrix for the entire domain.
 
         Args:
-            mu (:obj:`np.ndarray`):
-            cov (:obj:`np.ndarray`):
+            mu (:obj:`np.ndarray`): Mean array for all labels and features
+            cov (:obj:`np.ndarray`): Covariance matrix for all labels
 
         Returns:
             :obj:`np.ndarray` : Energy likelihood for each label at each element.
         """
-        energy_like_labels = np.zeros((self.phys_shp.prod(), self.n_labels))
-
-        # uses flattened features array
-        for l in range(self.n_labels):
-            energy_like_labels[:, l] = np.einsum("...i,ji,...j",
-                                                 0.5 * np.array([self.feat - mu[l, :]]),
-                                                 np.linalg.inv(cov[l, :, :]),
-                                                 np.array([self.feat - mu[l, :]])) + 0.5 * np.log(
-                np.linalg.det(cov[l, :, :]))
-
+        # Precompute inverses and log determinants for all labels
+        cov_invs = np.array([np.linalg.inv(cov[l]) for l in range(self.n_labels)])
+        log_dets = np.array([np.log(np.linalg.det(cov[l])) for l in range(self.n_labels)])
+        
+        # Center the data by subtracting means for all labels at once
+        centered_data = self.feat[:, np.newaxis, :] - mu[np.newaxis, :, :]  # Shape: (n_samples, n_labels, n_features)
+        
+        # Calculate quadratic terms for all labels at once using einsum
+        # This computes (x-μ)ᵀΣ⁻¹(x-μ) for all samples and labels
+        quad_terms = np.einsum('nlf,lfm,nlm->nl', 
+                              centered_data, 
+                              cov_invs, 
+                              centered_data)
+        
+        # Add log determinant terms and multiply by 0.5
+        energy_like_labels = 0.5 * (quad_terms + log_dets[np.newaxis, :])
+        
         return energy_like_labels
 
     def _calc_gibbs_energy_vect(self, labels, beta, verbose=False):

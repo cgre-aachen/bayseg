@@ -376,9 +376,25 @@ class BaySeg:
         """Calculates the summed log prior density for the given covariance matrix and labels array."""
         lam = np.sqrt(np.diag(cov[l, :, :]))
         r = np.diag(1. / lam) @ cov[l, :, :] @ np.diag(1. / lam)
-        logp_r = -0.5 * (self.nu + self.n_feat + 1) * np.log(np.linalg.det(r)) - self.nu / 2. * np.sum(
-            np.log(np.diag(np.linalg.inv(r))))
+        
+        # Ensure positive definiteness
+        det_r = np.linalg.det(r)
+        if det_r <= 0:
+            return -np.inf
+            
+        # Calculate log prior with numerical stability
+        logp_r = -0.5 * (self.nu + self.n_feat + 1) * np.log(det_r)
+        
+        # Handle inverse calculation safely
+        try:
+            inv_r = np.linalg.inv(r)
+            logp_r -= self.nu / 2. * np.sum(np.log(np.diag(inv_r)))
+        except np.linalg.LinAlgError:
+            return -np.inf
+            
+        # Calculate log prior for lambda
         logp_lam = np.sum(np.log(multivariate_normal(mean=self.b_sigma[l, :], cov=self.kesi[l, :]).pdf(np.log(lam.T))))
+        
         return logp_r + logp_lam
 
     def propose_beta(self, beta_prev, beta_jump_length):
@@ -850,14 +866,32 @@ def draw_labels_vect(labels_prob):
 
 
 def evaluate(log_target_prop, log_target_prev):
-
-    ratio = np.exp(np.longdouble(log_target_prop - log_target_prev))
-
+    """Evaluate whether to accept or reject a proposal based on log target values.
+    Handles numerical stability issues.
+    """
+    # Handle invalid values
+    if np.isnan(log_target_prop) or np.isnan(log_target_prev):
+        return False, 0.0
+    if np.isinf(log_target_prop) and np.isinf(log_target_prev):
+        return False, 0.0
+    if np.isinf(log_target_prop) and log_target_prop > 0:
+        return True, np.inf
+    if np.isinf(log_target_prev) and log_target_prev > 0:
+        return False, 0.0
+        
+    # Calculate ratio with numerical stability
+    diff = log_target_prop - log_target_prev
+    if diff > 700:  # exp(700) is close to float64 max
+        return True, np.inf
+    if diff < -700:  # exp(-700) is close to float64 min
+        return False, 0.0
+        
+    ratio = np.exp(diff)
+    
     if (ratio > 1) or (np.random.uniform() < ratio):
-        return True, ratio  # if accepted
-
+        return True, ratio
     else:
-        return False, ratio  # if rejected
+        return False, ratio
 
 
 def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length):

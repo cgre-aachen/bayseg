@@ -401,30 +401,29 @@ class BaySeg:
         """Proposes a perturbed beta based on a jump length hyperparameter.
 
         Args:
-            beta_prev:
-            beta_jump_length:
+            beta_prev: Previous beta values
+            beta_jump_length: Hyperparameter for jump length
 
         Returns:
-
+            :obj:`np.ndarray`: Newly proposed beta values
         """
-        # create proposal covariance depending on physical dimensionality
-        # dim = [1, 4, 13]
+        # Determine beta dimension based on dimensionality and stencil
         if self.dim == 1:
             beta_dim = 1
-
         elif self.dim == 2:
-            if self.stencil == "4p":
-                beta_dim = 2
-            elif self.stencil == "8p" or self.stencil is None:
-                beta_dim = 4
-
-        elif self.dim == 3:
+            beta_dim = 2 if self.stencil == "4p" else 4
+        else:
             raise Exception("3D not yet supported.")
 
-        sigma_prop = np.eye(beta_dim) * beta_jump_length
-        # draw from multivariate normal distribution and return
-        # return np.exp(multivariate_normal(mean=np.log(beta_prev), cov=sigma_prop).rvs())
-        return multivariate_normal(mean=beta_prev, cov=sigma_prop).rvs()
+        # Generate noise for all dimensions at once using vectorized operations
+        noise = np.random.normal(
+            loc=0,
+            scale=np.sqrt(beta_jump_length),
+            size=beta_dim
+        )
+        
+        # Add noise to previous beta values
+        return beta_prev + noise
 
     def propose_mu(self, mu_prev, mu_jump_length):
         """Proposes a perturbed mu matrix using a jump length hyperparameter.
@@ -435,14 +434,16 @@ class BaySeg:
 
         Returns:
             :obj:`np.ndarray`: The newly proposed mean array.
-
         """
-        # prepare matrix
-        mu_prop = np.ones((self.n_labels, self.n_feat))
-        # loop over labels
-        for l in range(self.n_labels):
-            mu_prop[l, :] = multivariate_normal(mean=mu_prev[l, :], cov=np.eye(self.n_feat) * mu_jump_length).rvs()
-        return mu_prop
+        # Generate all random samples at once using vectorized operations
+        noise = np.random.multivariate_normal(
+            mean=np.zeros(self.n_feat),
+            cov=np.eye(self.n_feat) * mu_jump_length,
+            size=self.n_labels
+        )
+        
+        # Add noise to previous means
+        return mu_prev + noise
 
     def calc_sum_log_mixture_density(self, comp_coef, mu, cov):
         """Calculate sum of log mixture density with each observation at every element.

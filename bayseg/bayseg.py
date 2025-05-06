@@ -110,20 +110,20 @@ class BaySeg:
         # ************************************************************************************************
         # INIT LABELS, MU and COV based on GMM
         # TODO: [GENERAL] storage variables from lists to numpy ndarrays
-        self.labels = np.array([self.gmm.predict(self.feat)])
+        self.labels = [self.gmm.predict(self.feat)]
         # INIT MU (mean from initial GMM)
-        self.mus = np.array([self.gmm.means_])
+        self.mus = [self.gmm.means_]
         # INIT COV (covariances from initial GMM)
-        self.covs = np.array([self.gmm.covariances_])
+        self.covs = [self.gmm.covariances_]
 
-        self.labels_probability = np.zeros((1, self.labels.shape[1], self.n_labels))
-        self.storage_gibbs_e = np.zeros([1, self.labels.shape[1], self.n_labels])
-        self.storage_like_e = np.zeros([1, self.labels.shape[1], self.n_labels])
-        self.storage_te = np.zeros([1, self.labels.shape[1], self.n_labels])
+        self.labels_probability = [np.zeros((self.labels[0].shape[0], self.n_labels))]
+        self.storage_gibbs_e = [np.zeros((self.labels[0].shape[0], self.n_labels))]
+        self.storage_like_e = [np.zeros((self.labels[0].shape[0], self.n_labels))]
+        self.storage_te = [np.zeros((self.labels[0].shape[0], self.n_labels))]
 
-        self.beta_acc_ratio = np.array([])
-        self.cov_acc_ratio = np.array([])
-        self.mu_acc_ratio = np.array([])
+        self.beta_acc_ratio = []
+        self.cov_acc_ratio = []
+        self.mu_acc_ratio = []
 
         # ************************************************************************************************
         # Initialize PRIOR distributions for beta, mu and covariance
@@ -224,7 +224,7 @@ class BaySeg:
         labels_prob = _calc_labels_prob(total_energy, t)
         if verbose == "energy":
             print("Labels probability:", labels_prob)
-        self.storage_te = np.append(self.storage_te, total_energy[np.newaxis, :, :], axis=0)
+        self.storage_te.append(total_energy)
 
         # make copy of previous labels
         new_labels = copy(self.labels[-1])
@@ -239,8 +239,8 @@ class BaySeg:
             total_energy = energy_like + gibbs_energy  # + self_energy
             labels_prob = _calc_labels_prob(total_energy, t)
 
-        self.labels_probability = np.append(self.labels_probability, labels_prob[np.newaxis, :, :], axis=0)
-        self.labels = np.append(self.labels, new_labels[np.newaxis, :], axis=0)
+        self.labels_probability.append(labels_prob)
+        self.labels.append(new_labels)
 
         # ************************************************************************************************
         # calculate energy for component coefficient
@@ -291,9 +291,9 @@ class BaySeg:
                 mu_next[l, :] = mu_prop[l, :]
             else:
                 pass
-            self.mu_acc_ratio = np.append(self.mu_acc_ratio, mu_eval[1])
+            self.mu_acc_ratio.append(mu_eval[1])
 
-        self.mus = np.append(self.mus, mu_next[np.newaxis, :, :], axis=0)
+        self.mus.append(mu_next)
 
         # ************************************************************************************************
         # UPDATE COVARIANCE
@@ -324,12 +324,12 @@ class BaySeg:
                 cov_next[l, :] = cov_prop[l, :]
             else:
                 pass
-            self.cov_acc_ratio = np.append(self.cov_acc_ratio, mu_eval[1])
+            self.cov_acc_ratio.append(mu_eval[1])
 
         # append cov and mu
-        self.covs = np.append(self.covs, cov_next[np.newaxis, :, :], axis=0)
-        self.storage_gibbs_e = np.append(self.storage_gibbs_e, gibbs_energy[np.newaxis, :, :], axis=0)
-        self.storage_like_e = np.append(self.storage_like_e, energy_like[np.newaxis, :], axis=0)
+        self.covs.append(cov_next)
+        self.storage_gibbs_e.append(gibbs_energy)
+        self.storage_like_e.append(energy_like)
 
         if not fix_beta:
             # ************************************************************************************************
@@ -357,18 +357,7 @@ class BaySeg:
                 self.betas.append(beta_prop)
             else:
                 self.betas.append(self.betas[-1])
-            self.beta_acc_ratio = np.append(self.beta_acc_ratio, mu_eval[1])  # store
-
-            # acc_ratio = np.exp(log_target_prop - log_target_prev)
-            # # print("beta acc_ratio:", acc_ratio)
-            #
-            # if verbose:
-            #     print("BETA acceptance ratio:", acc_ratio)
-            #
-            # if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
-            #     self.betas.append(beta_prop)
-            # else:
-            #     self.betas.append(self.betas[-1])
+            self.beta_acc_ratio.append(mu_eval[1])  # store
 
         else:
             self.betas.append(self.betas[-1])

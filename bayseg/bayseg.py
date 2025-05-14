@@ -228,15 +228,24 @@ class BaySeg:
 
         # make copy of previous labels
         new_labels = copy(self.labels[-1])
-        # new_labels = np.empty_like(self.labels[-1])
 
-        for i, color_f in enumerate(self.colors):
-            # print(np.average(new_labels))
-            new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
-            # print(np.average(new_labels))
-            # now recalculate gibbs energy and other energies from the mixture of old and new labels
+        # Vectorized label updates for all colors
+        # Create a mask array to track which indices have been updated
+        updated_mask = np.zeros_like(new_labels, dtype=bool)
+        
+        # Process each color group
+        for color_indices in self.colors:
+            # Skip if this color group has already been processed
+            if np.any(updated_mask[color_indices]):
+                continue
+            
+            # Update labels for this color group
+            new_labels[color_indices] = draw_labels_vect(labels_prob[color_indices])
+            updated_mask[color_indices] = True
+            
+            # Recalculate energies with updated labels
             gibbs_energy = self._calc_gibbs_energy_vect(new_labels, self.betas[-1], verbose=verbose)
-            total_energy = energy_like + gibbs_energy  # + self_energy
+            total_energy = energy_like + gibbs_energy
             labels_prob = _calc_labels_prob(total_energy, t)
 
         self.labels_probability.append(labels_prob)
@@ -503,9 +512,9 @@ class BaySeg:
         """Calculates the Gibbs energy for each element using the penalty factor(s) beta.
 
         Args:
-            labels (:obj:`np.ndarray`):
-            beta (:obj:`np.array` of float):
-            verbose (bool):
+            labels (:obj:`np.ndarray`): Current labels
+            beta (:obj:`np.array` of float): Penalty factors
+            verbose (bool): Verbosity flag
 
         Returns:
             :obj:`np.ndarray` : Gibbs energy at every element for each label.
@@ -513,153 +522,110 @@ class BaySeg:
         # ************************************************************************************************
         # 1D
         if self.dim == 1:
-            # tile
+            # Precompute comparison arrays
             lt = np.tile(labels, (self.n_labels, 1)).T
-
-            ge = np.arange(self.n_labels)  # elements x labels
-            ge = np.tile(ge, (len(labels), 1)).astype(float)
-
-            # first row
-            top = np.expand_dims(np.not_equal(np.arange(self.n_labels), lt[1, :]) * beta, axis=0)
-            # mid
-            mid = (np.not_equal(ge[1:-1, :], lt[:-2, :]).astype(float) + np.not_equal(ge[1:-1, :], lt[2:, :]).astype(
-                float)) * beta
-            # last row
-            bot = np.expand_dims(np.not_equal(np.arange(self.n_labels), lt[-2, :]) * beta, axis=0)
-            # put back together and return gibbs energy
+            ge = np.tile(np.arange(self.n_labels), (len(labels), 1)).astype(float)
+            
+            # Precompute masks for each position
+            top_mask = np.not_equal(np.arange(self.n_labels), lt[1, :])
+            mid_mask = np.not_equal(ge[1:-1, :], lt[:-2, :]) + np.not_equal(ge[1:-1, :], lt[2:, :])
+            bot_mask = np.not_equal(np.arange(self.n_labels), lt[-2, :])
+            
+            # Apply masks with beta
+            top = np.expand_dims(top_mask * beta, axis=0)
+            mid = mid_mask * beta
+            bot = np.expand_dims(bot_mask * beta, axis=0)
+            
             return np.concatenate((top, mid, bot))
 
         # ************************************************************************************************
         # 2D
         elif self.dim == 2:
-
-            # reshape the labels to 2D for "stencil-application"
+            # Reshape labels to 2D
             labels = labels.reshape(self.shape[0], self.shape[1])
-
-            # prepare gibbs energy array (filled with zeros)
+            
+            # Initialize energy array
             ge = np.tile(np.zeros_like(labels).astype(float), (self.n_labels, 1, 1))
-
-            # create comparison array containing the different labels
-            comp = np.tile(np.zeros_like(labels), (self.n_labels, 1, 1)).astype(float)
-            for i in range(self.n_labels):
-                comp[i, :, :] = i
-
-            # anisotropic beta directions
-            #  3  1  2
-            #   \ | /
-            #   --+-- 0
-            #   / | \
-
-            # **********************************************************************************************************
-            # direction 0 = 0° polar coord system
-            ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 1:-1]).astype(float)  # compare with left
-                                  + np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 1:-1]).astype(float)) * beta[0]  # compare with right
-
-            # left column
-            # right
-            ge[:, :, 0] += np.not_equal(comp[:, :, 0], labels[:, 1]).astype(float) * beta[0]
-            # right column
-            # left
-            ge[:, :, -1] += np.not_equal(comp[:, :, -1], labels[:, -2]).astype(float) * beta[0]
-            # top row
-            # right
-            ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[0, 1:]).astype(float) * beta[0]
-            # left
-            ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[0, :-1]).astype(float) * beta[0]
-            # bottom row
-            # right
-            ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-1, 1:]).astype(float) * beta[0]
-            # left
-            ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-1, :-1]).astype(float) * beta[0]
-
-            # **********************************************************************************************************
-            # direction 1 = 90° polar coord system
-            ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, :-2]).astype(float)  # compare with above
-                                  + np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, 2:]).astype(float)) * beta[1]  # compare with below
-            # left column
-            # above
-            ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 0]).astype(float) * beta[1]
-            # below
-            ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 0]).astype(float) * beta[1]
-            # right column
-            # above
-            ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -1]).astype(float) * beta[1]
-            # below
-            ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -1]).astype(float) * beta[1]
-            # top row
-            # below
-            ge[:, 0, :] += np.not_equal(comp[:, 0, :], labels[1, :]).astype(float) * beta[1]
-            # bottom row
-            # above
-            ge[:, -1, :] += np.not_equal(comp[:, -1, :], labels[-2, :]).astype(float) * beta[1]
-
-            # **********************************************************************************************************
-            # direction 2 = 45° polar coord system
-            if self.stencil is "8p":
-                ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, :-2]).astype(float)  # compare with right up
-                                      + np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 2:]).astype(float)) * beta[2]  # compare with left down
-                # left column
-                # right up
-                ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 1]).astype(float) * beta[2]
-                # right column
-                # left down
-                ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -2]).astype(float) * beta[2]
-                # top row
-                # below left
-                ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[1, :-1]).astype(float) * beta[2]
-                # bottom row
-                # above right
-                ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-2, 1:]).astype(float) * beta[2]
-            # **********************************************************************************************************
-            # direction 3 = 135° polar coord system
-            if self.stencil is "8p":
-                ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, :-2]).astype(float)  # compare with left up
-                                      + np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 2:]).astype(float)) * beta[3]  # compare with right down
-                # left column
-                # right down
-                ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 1]).astype(float) * beta[3]
-                # right column
-                # left up
-                ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -2]).astype(float) * beta[3]
-                # top row
-                # below right
-                ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[1, 1:]).astype(float) * beta[3]
-                # bottom row
-                # above left
-                ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-2, :-1]).astype(float) * beta[3]
-
-            # **********************************************************************************************************
-            # overwrite corners
-            # up left
-            ge[:, 0, 0] = np.not_equal(comp[:, 0, 0], labels[1, 0]).astype(float) * beta[1] \
-                          + np.not_equal(comp[:, 0, 0], labels[0, 1]).astype(float) * beta[0]
-            if self.stencil is "8p":
-                ge[:, 0, 0] += np.not_equal(comp[:, 0, 0], labels[1, 1]).astype(float) * beta[3]
-
-            # low left
-            ge[:, -1, 0] = np.not_equal(comp[:, -1, 0], labels[-1, 1]).astype(float) * beta[0] \
-                           + np.not_equal(comp[:, -1, 0], labels[-2, 0]).astype(float) * beta[1]
-            if self.stencil is "8p":
-                ge[:, -1, 0] += np.not_equal(comp[:, -1, 0], labels[-2, 1]).astype(float) * beta[2]
-
-            # up right
-            ge[:, 0, -1] = np.not_equal(comp[:, 0, -1], labels[1, -1]).astype(float) * beta[1] \
-                           + np.not_equal(comp[:, 0, -1], labels[0, -2]).astype(float) * beta[0]
-            if self.stencil is "8p":
-                ge[:, 0, -1] += np.not_equal(comp[:, 0, -1], labels[1, -2]).astype(float) * beta[2]
-
-            # low right
-            ge[:, -1, -1] = np.not_equal(comp[:, -1, -1], labels[-2, -1]).astype(float) * beta[1] \
-                            + np.not_equal(comp[:, -1, -1], labels[-1, -2]).astype(float) * beta[0]
-            if self.stencil is "8p":
-                ge[:, -1, -1] += np.not_equal(comp[:, -1, -1], labels[-2, -2]).astype(float) * beta[3]
-
-            # reshape and transpose gibbs energy, return
+            
+            # Precompute comparison array for all labels
+            comp = np.tile(np.arange(self.n_labels)[:, np.newaxis, np.newaxis], 
+                          (1, self.shape[0], self.shape[1]))
+            
+            # Precompute masks for each direction
+            # Direction 0 (horizontal)
+            mask_h = np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 1:-1]) + \
+                     np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 1:-1])
+            ge[:, 1:-1, 1:-1] += mask_h * beta[0]
+            
+            # Direction 1 (vertical)
+            mask_v = np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, :-2]) + \
+                     np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, 2:])
+            ge[:, 1:-1, 1:-1] += mask_v * beta[1]
+            
+            if self.stencil == "8p":
+                # Direction 2 (45°)
+                mask_d1 = np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, :-2]) + \
+                          np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 2:])
+                ge[:, 1:-1, 1:-1] += mask_d1 * beta[2]
+                
+                # Direction 3 (135°)
+                mask_d2 = np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, :-2]) + \
+                          np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 2:])
+                ge[:, 1:-1, 1:-1] += mask_d2 * beta[3]
+            
+            # Handle boundaries
+            # Left column
+            ge[:, :, 0] += np.not_equal(comp[:, :, 0], labels[:, 1]) * beta[0]
+            # Right column
+            ge[:, :, -1] += np.not_equal(comp[:, :, -1], labels[:, -2]) * beta[0]
+            # Top row
+            ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[0, 1:]) * beta[0]
+            ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[0, :-1]) * beta[0]
+            # Bottom row
+            ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-1, 1:]) * beta[0]
+            ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-1, :-1]) * beta[0]
+            
+            # Vertical boundaries
+            ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 0]) * beta[1]
+            ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 0]) * beta[1]
+            ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -1]) * beta[1]
+            ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -1]) * beta[1]
+            ge[:, 0, :] += np.not_equal(comp[:, 0, :], labels[1, :]) * beta[1]
+            ge[:, -1, :] += np.not_equal(comp[:, -1, :], labels[-2, :]) * beta[1]
+            
+            if self.stencil == "8p":
+                # Diagonal boundaries
+                ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 1]) * beta[2]
+                ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -2]) * beta[2]
+                ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[1, :-1]) * beta[2]
+                ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-2, 1:]) * beta[2]
+                
+                ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 1]) * beta[3]
+                ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -2]) * beta[3]
+                ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[1, 1:]) * beta[3]
+                ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-2, :-1]) * beta[3]
+            
+            # Handle corners
+            ge[:, 0, 0] = (np.not_equal(comp[:, 0, 0], labels[1, 0]) * beta[1] +
+                           np.not_equal(comp[:, 0, 0], labels[0, 1]) * beta[0])
+            ge[:, -1, 0] = (np.not_equal(comp[:, -1, 0], labels[-1, 1]) * beta[0] +
+                            np.not_equal(comp[:, -1, 0], labels[-2, 0]) * beta[1])
+            ge[:, 0, -1] = (np.not_equal(comp[:, 0, -1], labels[1, -1]) * beta[1] +
+                            np.not_equal(comp[:, 0, -1], labels[0, -2]) * beta[0])
+            ge[:, -1, -1] = (np.not_equal(comp[:, -1, -1], labels[-2, -1]) * beta[1] +
+                             np.not_equal(comp[:, -1, -1], labels[-1, -2]) * beta[0])
+            
+            if self.stencil == "8p":
+                ge[:, 0, 0] += np.not_equal(comp[:, 0, 0], labels[1, 1]) * beta[3]
+                ge[:, -1, 0] += np.not_equal(comp[:, -1, 0], labels[-2, 1]) * beta[2]
+                ge[:, 0, -1] += np.not_equal(comp[:, 0, -1], labels[1, -2]) * beta[2]
+                ge[:, -1, -1] += np.not_equal(comp[:, -1, -1], labels[-2, -2]) * beta[3]
+            
+            # Reshape and transpose for return
             return np.array([ge[l, :, :].ravel() for l in range(self.n_labels)]).T
 
         # ************************************************************************************************
         elif self.dim == 3:
-            # TODO: [3D] implementation of gibbs energy
             raise Exception("3D not yet implemented.")
 
     def mcr(self, true_labels):

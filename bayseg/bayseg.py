@@ -32,7 +32,7 @@ plt.style.use('bmh')  # plot style
 
 
 class BaySeg:
-    def __init__(self, data, n_labels, beta_init=1, stencil=None, normalize=True):
+    def __init__(self, data, n_labels, beta_init=1, stencil=None, normalize=True, max_history=50, store_diagnostics=True):
         """
 
         Args:
@@ -47,9 +47,16 @@ class BaySeg:
             beta_init (float): Initial penalty value for Gibbs energy calculation.
             stencil (int): Number specifying the stencil of the neighborhood system used in the Gibbs energy
                 calculation.
+            normalize (bool): Whether to normalize feature vectors.
+            max_history (int): Maximum number of iterations to store in memory. Default is 50.
+            store_diagnostics (bool): Whether to store diagnostic arrays (energies). Default is True.
 
         """
         # TODO: [DOCS] Main object description
+
+        # store memory optimization parameters
+        self.max_history = max_history
+        self.store_diagnostics = store_diagnostics
 
         # store initial data
         self.data = data
@@ -117,9 +124,16 @@ class BaySeg:
         self.covs = [self.gmm.covariances_]
 
         self.labels_probability = [np.zeros((self.labels[0].shape[0], self.n_labels))]
-        self.storage_gibbs_e = [np.zeros((self.labels[0].shape[0], self.n_labels))]
-        self.storage_like_e = [np.zeros((self.labels[0].shape[0], self.n_labels))]
-        self.storage_te = [np.zeros((self.labels[0].shape[0], self.n_labels))]
+        
+        # Initialize diagnostic storage arrays only if requested
+        if self.store_diagnostics:
+            self.storage_gibbs_e = [np.zeros((self.labels[0].shape[0], self.n_labels))]
+            self.storage_like_e = [np.zeros((self.labels[0].shape[0], self.n_labels))]
+            self.storage_te = [np.zeros((self.labels[0].shape[0], self.n_labels))]
+        else:
+            self.storage_gibbs_e = []
+            self.storage_like_e = []
+            self.storage_te = []
 
         self.beta_acc_ratio = []
         self.cov_acc_ratio = []
@@ -163,6 +177,22 @@ class BaySeg:
         self.nu = self.n_feat + 1
         # ************************************************************************************************
 
+    def _limit_storage_size(self):
+        """Keep only recent history to prevent memory explosion"""
+        if len(self.labels) > self.max_history:
+            # Keep only last max_history entries
+            self.labels = self.labels[-self.max_history:]
+            self.mus = self.mus[-self.max_history:]
+            self.covs = self.covs[-self.max_history:]
+            self.betas = self.betas[-self.max_history:]
+            self.labels_probability = self.labels_probability[-self.max_history:]
+            
+            # Only trim diagnostic arrays if they are being stored
+            if self.store_diagnostics:
+                self.storage_gibbs_e = self.storage_gibbs_e[-self.max_history:]
+                self.storage_like_e = self.storage_like_e[-self.max_history:]
+                self.storage_te = self.storage_te[-self.max_history:]
+
     def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005,
             theta_jump_length=0.0005, t=1., verbose=False, fix_beta=False):
         """Fit the segmentation parameters to the given data.
@@ -181,6 +211,8 @@ class BaySeg:
         for g in tqdm.trange(n):
             self.gibbs_sample(t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length,
                               verbose, fix_beta)
+        
+        print("Segmentation completed!")
 
     def gibbs_sample(self, t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length, verbose,
                      fix_beta):
@@ -224,7 +256,8 @@ class BaySeg:
         labels_prob = _calc_labels_prob(total_energy, t)
         if verbose == "energy":
             print("Labels probability:", labels_prob)
-        self.storage_te.append(total_energy)
+        if self.store_diagnostics:
+            self.storage_te.append(total_energy)
 
         # make copy of previous labels
         new_labels = copy(self.labels[-1])
@@ -337,8 +370,9 @@ class BaySeg:
 
         # append cov and mu
         self.covs.append(cov_next)
-        self.storage_gibbs_e.append(gibbs_energy)
-        self.storage_like_e.append(energy_like)
+        if self.store_diagnostics:
+            self.storage_gibbs_e.append(gibbs_energy)
+            self.storage_like_e.append(energy_like)
 
         if not fix_beta:
             # ************************************************************************************************
@@ -370,7 +404,10 @@ class BaySeg:
 
         else:
             self.betas.append(self.betas[-1])
-            # ************************************************************************************************
+            
+        # Limit storage size to prevent memory explosion
+        self._limit_storage_size()
+        # ************************************************************************************************
 
     def log_prior_density_mu(self, mu, label):
         """Calculates the summed log prior density for a given mean and labels array."""

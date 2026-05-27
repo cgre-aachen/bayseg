@@ -32,7 +32,7 @@ plt.style.use('bmh')  # plot style
 
 
 class BaySeg:
-    def __init__(self, data, n_labels, beta_init=1, stencil=None, normalize=True):
+    def __init__(self, data, n_labels, beta_init=1, stencil=None, normalize=True, max_history=50, store_diagnostics=True):
         """
 
         Args:
@@ -47,9 +47,16 @@ class BaySeg:
             beta_init (float): Initial penalty value for Gibbs energy calculation.
             stencil (int): Number specifying the stencil of the neighborhood system used in the Gibbs energy
                 calculation.
+            normalize (bool): Whether to normalize feature vectors.
+            max_history (int): Maximum number of iterations to store in memory. Default is 50.
+            store_diagnostics (bool): Whether to store diagnostic arrays (energies). Default is True.
 
         """
         # TODO: [DOCS] Main object description
+
+        # store memory optimization parameters
+        self.max_history = max_history
+        self.store_diagnostics = store_diagnostics
 
         # store initial data
         self.data = data
@@ -110,20 +117,27 @@ class BaySeg:
         # ************************************************************************************************
         # INIT LABELS, MU and COV based on GMM
         # TODO: [GENERAL] storage variables from lists to numpy ndarrays
-        self.labels = np.array([self.gmm.predict(self.feat)])
+        self.labels = [self.gmm.predict(self.feat)]
         # INIT MU (mean from initial GMM)
-        self.mus = np.array([self.gmm.means_])
+        self.mus = [self.gmm.means_]
         # INIT COV (covariances from initial GMM)
-        self.covs = np.array([self.gmm.covariances_])
+        self.covs = [self.gmm.covariances_]
 
-        self.labels_probability = np.zeros((1, self.labels.shape[1], self.n_labels))
-        self.storage_gibbs_e = np.zeros([1, self.labels.shape[1], self.n_labels])
-        self.storage_like_e = np.zeros([1, self.labels.shape[1], self.n_labels])
-        self.storage_te = np.zeros([1, self.labels.shape[1], self.n_labels])
+        self.labels_probability = [np.zeros((self.labels[0].shape[0], self.n_labels))]
+        
+        # Initialize diagnostic storage arrays only if requested
+        if self.store_diagnostics:
+            self.storage_gibbs_e = [np.zeros((self.labels[0].shape[0], self.n_labels))]
+            self.storage_like_e = [np.zeros((self.labels[0].shape[0], self.n_labels))]
+            self.storage_te = [np.zeros((self.labels[0].shape[0], self.n_labels))]
+        else:
+            self.storage_gibbs_e = []
+            self.storage_like_e = []
+            self.storage_te = []
 
-        self.beta_acc_ratio = np.array([])
-        self.cov_acc_ratio = np.array([])
-        self.mu_acc_ratio = np.array([])
+        self.beta_acc_ratio = []
+        self.cov_acc_ratio = []
+        self.mu_acc_ratio = []
 
         # ************************************************************************************************
         # Initialize PRIOR distributions for beta, mu and covariance
@@ -163,6 +177,22 @@ class BaySeg:
         self.nu = self.n_feat + 1
         # ************************************************************************************************
 
+    def _limit_storage_size(self):
+        """Keep only recent history to prevent memory explosion"""
+        if len(self.labels) > self.max_history:
+            # Keep only last max_history entries
+            self.labels = self.labels[-self.max_history:]
+            self.mus = self.mus[-self.max_history:]
+            self.covs = self.covs[-self.max_history:]
+            self.betas = self.betas[-self.max_history:]
+            self.labels_probability = self.labels_probability[-self.max_history:]
+            
+            # Only trim diagnostic arrays if they are being stored
+            if self.store_diagnostics:
+                self.storage_gibbs_e = self.storage_gibbs_e[-self.max_history:]
+                self.storage_like_e = self.storage_like_e[-self.max_history:]
+                self.storage_te = self.storage_te[-self.max_history:]
+
     def fit(self, n, beta_jump_length=10, mu_jump_length=0.0005, cov_volume_jump_length=0.00005,
             theta_jump_length=0.0005, t=1., verbose=False, fix_beta=False):
         """Fit the segmentation parameters to the given data.
@@ -181,6 +211,8 @@ class BaySeg:
         for g in tqdm.trange(n):
             self.gibbs_sample(t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length,
                               verbose, fix_beta)
+        
+        print("Segmentation completed!")
 
     def gibbs_sample(self, t, beta_jump_length, mu_jump_length, cov_volume_jump_length, theta_jump_length, verbose,
                      fix_beta):
@@ -224,23 +256,33 @@ class BaySeg:
         labels_prob = _calc_labels_prob(total_energy, t)
         if verbose == "energy":
             print("Labels probability:", labels_prob)
-        self.storage_te = np.append(self.storage_te, total_energy[np.newaxis, :, :], axis=0)
+        if self.store_diagnostics:
+            self.storage_te.append(total_energy)
 
         # make copy of previous labels
         new_labels = copy(self.labels[-1])
-        # new_labels = np.empty_like(self.labels[-1])
 
-        for i, color_f in enumerate(self.colors):
-            # print(np.average(new_labels))
-            new_labels[color_f] = draw_labels_vect(labels_prob[color_f])
-            # print(np.average(new_labels))
-            # now recalculate gibbs energy and other energies from the mixture of old and new labels
+        # Vectorized label updates for all colors
+        # Create a mask array to track which indices have been updated
+        updated_mask = np.zeros_like(new_labels, dtype=bool)
+        
+        # Process each color group
+        for color_indices in self.colors:
+            # Skip if this color group has already been processed
+            if np.any(updated_mask[color_indices]):
+                continue
+            
+            # Update labels for this color group
+            new_labels[color_indices] = draw_labels_vect(labels_prob[color_indices])
+            updated_mask[color_indices] = True
+            
+            # Recalculate energies with updated labels
             gibbs_energy = self._calc_gibbs_energy_vect(new_labels, self.betas[-1], verbose=verbose)
-            total_energy = energy_like + gibbs_energy  # + self_energy
+            total_energy = energy_like + gibbs_energy
             labels_prob = _calc_labels_prob(total_energy, t)
 
-        self.labels_probability = np.append(self.labels_probability, labels_prob[np.newaxis, :, :], axis=0)
-        self.labels = np.append(self.labels, new_labels[np.newaxis, :], axis=0)
+        self.labels_probability.append(labels_prob)
+        self.labels.append(new_labels)
 
         # ************************************************************************************************
         # calculate energy for component coefficient
@@ -291,9 +333,9 @@ class BaySeg:
                 mu_next[l, :] = mu_prop[l, :]
             else:
                 pass
-            self.mu_acc_ratio = np.append(self.mu_acc_ratio, mu_eval[1])
+            self.mu_acc_ratio.append(mu_eval[1])
 
-        self.mus = np.append(self.mus, mu_next[np.newaxis, :, :], axis=0)
+        self.mus.append(mu_next)
 
         # ************************************************************************************************
         # UPDATE COVARIANCE
@@ -324,12 +366,13 @@ class BaySeg:
                 cov_next[l, :] = cov_prop[l, :]
             else:
                 pass
-            self.cov_acc_ratio = np.append(self.cov_acc_ratio, mu_eval[1])
+            self.cov_acc_ratio.append(mu_eval[1])
 
         # append cov and mu
-        self.covs = np.append(self.covs, cov_next[np.newaxis, :, :], axis=0)
-        self.storage_gibbs_e = np.append(self.storage_gibbs_e, gibbs_energy[np.newaxis, :, :], axis=0)
-        self.storage_like_e = np.append(self.storage_like_e, energy_like[np.newaxis, :], axis=0)
+        self.covs.append(cov_next)
+        if self.store_diagnostics:
+            self.storage_gibbs_e.append(gibbs_energy)
+            self.storage_like_e.append(energy_like)
 
         if not fix_beta:
             # ************************************************************************************************
@@ -357,22 +400,14 @@ class BaySeg:
                 self.betas.append(beta_prop)
             else:
                 self.betas.append(self.betas[-1])
-            self.beta_acc_ratio = np.append(self.beta_acc_ratio, mu_eval[1])  # store
-
-            # acc_ratio = np.exp(log_target_prop - log_target_prev)
-            # # print("beta acc_ratio:", acc_ratio)
-            #
-            # if verbose:
-            #     print("BETA acceptance ratio:", acc_ratio)
-            #
-            # if (acc_ratio > 1) or (np.random.uniform() < acc_ratio):
-            #     self.betas.append(beta_prop)
-            # else:
-            #     self.betas.append(self.betas[-1])
+            self.beta_acc_ratio.append(mu_eval[1])  # store
 
         else:
             self.betas.append(self.betas[-1])
-            # ************************************************************************************************
+            
+        # Limit storage size to prevent memory explosion
+        self._limit_storage_size()
+        # ************************************************************************************************
 
     def log_prior_density_mu(self, mu, label):
         """Calculates the summed log prior density for a given mean and labels array."""
@@ -387,39 +422,54 @@ class BaySeg:
         """Calculates the summed log prior density for the given covariance matrix and labels array."""
         lam = np.sqrt(np.diag(cov[l, :, :]))
         r = np.diag(1. / lam) @ cov[l, :, :] @ np.diag(1. / lam)
-        logp_r = -0.5 * (self.nu + self.n_feat + 1) * np.log(np.linalg.det(r)) - self.nu / 2. * np.sum(
-            np.log(np.diag(np.linalg.inv(r))))
+        
+        # Ensure positive definiteness
+        det_r = np.linalg.det(r)
+        if det_r <= 0:
+            return -np.inf
+            
+        # Calculate log prior with numerical stability
+        logp_r = -0.5 * (self.nu + self.n_feat + 1) * np.log(det_r)
+        
+        # Handle inverse calculation safely
+        try:
+            inv_r = np.linalg.inv(r)
+            logp_r -= self.nu / 2. * np.sum(np.log(np.diag(inv_r)))
+        except np.linalg.LinAlgError:
+            return -np.inf
+            
+        # Calculate log prior for lambda
         logp_lam = np.sum(np.log(multivariate_normal(mean=self.b_sigma[l, :], cov=self.kesi[l, :]).pdf(np.log(lam.T))))
+        
         return logp_r + logp_lam
 
     def propose_beta(self, beta_prev, beta_jump_length):
         """Proposes a perturbed beta based on a jump length hyperparameter.
 
         Args:
-            beta_prev:
-            beta_jump_length:
+            beta_prev: Previous beta values
+            beta_jump_length: Hyperparameter for jump length
 
         Returns:
-
+            :obj:`np.ndarray`: Newly proposed beta values
         """
-        # create proposal covariance depending on physical dimensionality
-        # dim = [1, 4, 13]
+        # Determine beta dimension based on dimensionality and stencil
         if self.dim == 1:
             beta_dim = 1
-
         elif self.dim == 2:
-            if self.stencil == "4p":
-                beta_dim = 2
-            elif self.stencil == "8p" or self.stencil is None:
-                beta_dim = 4
-
-        elif self.dim == 3:
+            beta_dim = 2 if self.stencil == "4p" else 4
+        else:
             raise Exception("3D not yet supported.")
 
-        sigma_prop = np.eye(beta_dim) * beta_jump_length
-        # draw from multivariate normal distribution and return
-        # return np.exp(multivariate_normal(mean=np.log(beta_prev), cov=sigma_prop).rvs())
-        return multivariate_normal(mean=beta_prev, cov=sigma_prop).rvs()
+        # Generate noise for all dimensions at once using vectorized operations
+        noise = np.random.normal(
+            loc=0,
+            scale=np.sqrt(beta_jump_length),
+            size=beta_dim
+        )
+        
+        # Add noise to previous beta values
+        return beta_prev + noise
 
     def propose_mu(self, mu_prev, mu_jump_length):
         """Proposes a perturbed mu matrix using a jump length hyperparameter.
@@ -430,14 +480,16 @@ class BaySeg:
 
         Returns:
             :obj:`np.ndarray`: The newly proposed mean array.
-
         """
-        # prepare matrix
-        mu_prop = np.ones((self.n_labels, self.n_feat))
-        # loop over labels
-        for l in range(self.n_labels):
-            mu_prop[l, :] = multivariate_normal(mean=mu_prev[l, :], cov=np.eye(self.n_feat) * mu_jump_length).rvs()
-        return mu_prop
+        # Generate all random samples at once using vectorized operations
+        noise = np.random.multivariate_normal(
+            mean=np.zeros(self.n_feat),
+            cov=np.eye(self.n_feat) * mu_jump_length,
+            size=self.n_labels
+        )
+        
+        # Add noise to previous means
+        return mu_prev + noise
 
     def calc_sum_log_mixture_density(self, comp_coef, mu, cov):
         """Calculate sum of log mixture density with each observation at every element.
@@ -468,31 +520,38 @@ class BaySeg:
         """Calculates the energy likelihood for a given mean array and covariance matrix for the entire domain.
 
         Args:
-            mu (:obj:`np.ndarray`):
-            cov (:obj:`np.ndarray`):
+            mu (:obj:`np.ndarray`): Mean array for all labels and features
+            cov (:obj:`np.ndarray`): Covariance matrix for all labels
 
         Returns:
             :obj:`np.ndarray` : Energy likelihood for each label at each element.
         """
-        energy_like_labels = np.zeros((self.phys_shp.prod(), self.n_labels))
-
-        # uses flattened features array
-        for l in range(self.n_labels):
-            energy_like_labels[:, l] = np.einsum("...i,ji,...j",
-                                                 0.5 * np.array([self.feat - mu[l, :]]),
-                                                 np.linalg.inv(cov[l, :, :]),
-                                                 np.array([self.feat - mu[l, :]])) + 0.5 * np.log(
-                np.linalg.det(cov[l, :, :]))
-
+        # Precompute inverses and log determinants for all labels
+        cov_invs = np.array([np.linalg.inv(cov[l]) for l in range(self.n_labels)])
+        log_dets = np.array([np.log(np.linalg.det(cov[l])) for l in range(self.n_labels)])
+        
+        # Center the data by subtracting means for all labels at once
+        centered_data = self.feat[:, np.newaxis, :] - mu[np.newaxis, :, :]  # Shape: (n_samples, n_labels, n_features)
+        
+        # Calculate quadratic terms for all labels at once using einsum
+        # This computes (x-μ)ᵀΣ⁻¹(x-μ) for all samples and labels
+        quad_terms = np.einsum('nlf,lfm,nlm->nl', 
+                              centered_data, 
+                              cov_invs, 
+                              centered_data)
+        
+        # Add log determinant terms and multiply by 0.5
+        energy_like_labels = 0.5 * (quad_terms + log_dets[np.newaxis, :])
+        
         return energy_like_labels
 
     def _calc_gibbs_energy_vect(self, labels, beta, verbose=False):
         """Calculates the Gibbs energy for each element using the penalty factor(s) beta.
 
         Args:
-            labels (:obj:`np.ndarray`):
-            beta (:obj:`np.array` of float):
-            verbose (bool):
+            labels (:obj:`np.ndarray`): Current labels
+            beta (:obj:`np.array` of float): Penalty factors
+            verbose (bool): Verbosity flag
 
         Returns:
             :obj:`np.ndarray` : Gibbs energy at every element for each label.
@@ -500,153 +559,110 @@ class BaySeg:
         # ************************************************************************************************
         # 1D
         if self.dim == 1:
-            # tile
+            # Precompute comparison arrays
             lt = np.tile(labels, (self.n_labels, 1)).T
-
-            ge = np.arange(self.n_labels)  # elements x labels
-            ge = np.tile(ge, (len(labels), 1)).astype(float)
-
-            # first row
-            top = np.expand_dims(np.not_equal(np.arange(self.n_labels), lt[1, :]) * beta, axis=0)
-            # mid
-            mid = (np.not_equal(ge[1:-1, :], lt[:-2, :]).astype(float) + np.not_equal(ge[1:-1, :], lt[2:, :]).astype(
-                float)) * beta
-            # last row
-            bot = np.expand_dims(np.not_equal(np.arange(self.n_labels), lt[-2, :]) * beta, axis=0)
-            # put back together and return gibbs energy
+            ge = np.tile(np.arange(self.n_labels), (len(labels), 1)).astype(float)
+            
+            # Precompute masks for each position
+            top_mask = np.not_equal(np.arange(self.n_labels), lt[1, :])
+            mid_mask = np.not_equal(ge[1:-1, :], lt[:-2, :]) + np.not_equal(ge[1:-1, :], lt[2:, :])
+            bot_mask = np.not_equal(np.arange(self.n_labels), lt[-2, :])
+            
+            # Apply masks with beta
+            top = np.expand_dims(top_mask * beta, axis=0)
+            mid = mid_mask * beta
+            bot = np.expand_dims(bot_mask * beta, axis=0)
+            
             return np.concatenate((top, mid, bot))
 
         # ************************************************************************************************
         # 2D
         elif self.dim == 2:
-
-            # reshape the labels to 2D for "stencil-application"
+            # Reshape labels to 2D
             labels = labels.reshape(self.shape[0], self.shape[1])
-
-            # prepare gibbs energy array (filled with zeros)
+            
+            # Initialize energy array
             ge = np.tile(np.zeros_like(labels).astype(float), (self.n_labels, 1, 1))
-
-            # create comparison array containing the different labels
-            comp = np.tile(np.zeros_like(labels), (self.n_labels, 1, 1)).astype(float)
-            for i in range(self.n_labels):
-                comp[i, :, :] = i
-
-            # anisotropic beta directions
-            #  3  1  2
-            #   \ | /
-            #   --+-- 0
-            #   / | \
-
-            # **********************************************************************************************************
-            # direction 0 = 0° polar coord system
-            ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 1:-1]).astype(float)  # compare with left
-                                  + np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 1:-1]).astype(float)) * beta[0]  # compare with right
-
-            # left column
-            # right
-            ge[:, :, 0] += np.not_equal(comp[:, :, 0], labels[:, 1]).astype(float) * beta[0]
-            # right column
-            # left
-            ge[:, :, -1] += np.not_equal(comp[:, :, -1], labels[:, -2]).astype(float) * beta[0]
-            # top row
-            # right
-            ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[0, 1:]).astype(float) * beta[0]
-            # left
-            ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[0, :-1]).astype(float) * beta[0]
-            # bottom row
-            # right
-            ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-1, 1:]).astype(float) * beta[0]
-            # left
-            ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-1, :-1]).astype(float) * beta[0]
-
-            # **********************************************************************************************************
-            # direction 1 = 90° polar coord system
-            ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, :-2]).astype(float)  # compare with above
-                                  + np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, 2:]).astype(float)) * beta[1]  # compare with below
-            # left column
-            # above
-            ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 0]).astype(float) * beta[1]
-            # below
-            ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 0]).astype(float) * beta[1]
-            # right column
-            # above
-            ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -1]).astype(float) * beta[1]
-            # below
-            ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -1]).astype(float) * beta[1]
-            # top row
-            # below
-            ge[:, 0, :] += np.not_equal(comp[:, 0, :], labels[1, :]).astype(float) * beta[1]
-            # bottom row
-            # above
-            ge[:, -1, :] += np.not_equal(comp[:, -1, :], labels[-2, :]).astype(float) * beta[1]
-
-            # **********************************************************************************************************
-            # direction 2 = 45° polar coord system
-            if self.stencil is "8p":
-                ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, :-2]).astype(float)  # compare with right up
-                                      + np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 2:]).astype(float)) * beta[2]  # compare with left down
-                # left column
-                # right up
-                ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 1]).astype(float) * beta[2]
-                # right column
-                # left down
-                ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -2]).astype(float) * beta[2]
-                # top row
-                # below left
-                ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[1, :-1]).astype(float) * beta[2]
-                # bottom row
-                # above right
-                ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-2, 1:]).astype(float) * beta[2]
-            # **********************************************************************************************************
-            # direction 3 = 135° polar coord system
-            if self.stencil is "8p":
-                ge[:, 1:-1, 1:-1] += (np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, :-2]).astype(float)  # compare with left up
-                                      + np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 2:]).astype(float)) * beta[3]  # compare with right down
-                # left column
-                # right down
-                ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 1]).astype(float) * beta[3]
-                # right column
-                # left up
-                ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -2]).astype(float) * beta[3]
-                # top row
-                # below right
-                ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[1, 1:]).astype(float) * beta[3]
-                # bottom row
-                # above left
-                ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-2, :-1]).astype(float) * beta[3]
-
-            # **********************************************************************************************************
-            # overwrite corners
-            # up left
-            ge[:, 0, 0] = np.not_equal(comp[:, 0, 0], labels[1, 0]).astype(float) * beta[1] \
-                          + np.not_equal(comp[:, 0, 0], labels[0, 1]).astype(float) * beta[0]
-            if self.stencil is "8p":
-                ge[:, 0, 0] += np.not_equal(comp[:, 0, 0], labels[1, 1]).astype(float) * beta[3]
-
-            # low left
-            ge[:, -1, 0] = np.not_equal(comp[:, -1, 0], labels[-1, 1]).astype(float) * beta[0] \
-                           + np.not_equal(comp[:, -1, 0], labels[-2, 0]).astype(float) * beta[1]
-            if self.stencil is "8p":
-                ge[:, -1, 0] += np.not_equal(comp[:, -1, 0], labels[-2, 1]).astype(float) * beta[2]
-
-            # up right
-            ge[:, 0, -1] = np.not_equal(comp[:, 0, -1], labels[1, -1]).astype(float) * beta[1] \
-                           + np.not_equal(comp[:, 0, -1], labels[0, -2]).astype(float) * beta[0]
-            if self.stencil is "8p":
-                ge[:, 0, -1] += np.not_equal(comp[:, 0, -1], labels[1, -2]).astype(float) * beta[2]
-
-            # low right
-            ge[:, -1, -1] = np.not_equal(comp[:, -1, -1], labels[-2, -1]).astype(float) * beta[1] \
-                            + np.not_equal(comp[:, -1, -1], labels[-1, -2]).astype(float) * beta[0]
-            if self.stencil is "8p":
-                ge[:, -1, -1] += np.not_equal(comp[:, -1, -1], labels[-2, -2]).astype(float) * beta[3]
-
-            # reshape and transpose gibbs energy, return
+            
+            # Precompute comparison array for all labels
+            comp = np.tile(np.arange(self.n_labels)[:, np.newaxis, np.newaxis], 
+                          (1, self.shape[0], self.shape[1]))
+            
+            # Precompute masks for each direction
+            # Direction 0 (horizontal)
+            mask_h = np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 1:-1]) + \
+                     np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 1:-1])
+            ge[:, 1:-1, 1:-1] += mask_h * beta[0]
+            
+            # Direction 1 (vertical)
+            mask_v = np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, :-2]) + \
+                     np.not_equal(comp[:, 1:-1, 1:-1], labels[1:-1, 2:])
+            ge[:, 1:-1, 1:-1] += mask_v * beta[1]
+            
+            if self.stencil == "8p":
+                # Direction 2 (45°)
+                mask_d1 = np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, :-2]) + \
+                          np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, 2:])
+                ge[:, 1:-1, 1:-1] += mask_d1 * beta[2]
+                
+                # Direction 3 (135°)
+                mask_d2 = np.not_equal(comp[:, 1:-1, 1:-1], labels[:-2, :-2]) + \
+                          np.not_equal(comp[:, 1:-1, 1:-1], labels[2:, 2:])
+                ge[:, 1:-1, 1:-1] += mask_d2 * beta[3]
+            
+            # Handle boundaries
+            # Left column
+            ge[:, :, 0] += np.not_equal(comp[:, :, 0], labels[:, 1]) * beta[0]
+            # Right column
+            ge[:, :, -1] += np.not_equal(comp[:, :, -1], labels[:, -2]) * beta[0]
+            # Top row
+            ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[0, 1:]) * beta[0]
+            ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[0, :-1]) * beta[0]
+            # Bottom row
+            ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-1, 1:]) * beta[0]
+            ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-1, :-1]) * beta[0]
+            
+            # Vertical boundaries
+            ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 0]) * beta[1]
+            ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 0]) * beta[1]
+            ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -1]) * beta[1]
+            ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -1]) * beta[1]
+            ge[:, 0, :] += np.not_equal(comp[:, 0, :], labels[1, :]) * beta[1]
+            ge[:, -1, :] += np.not_equal(comp[:, -1, :], labels[-2, :]) * beta[1]
+            
+            if self.stencil == "8p":
+                # Diagonal boundaries
+                ge[:, 1:, 0] += np.not_equal(comp[:, 1:, 0], labels[:-1, 1]) * beta[2]
+                ge[:, :-1, -1] += np.not_equal(comp[:, :-1, -1], labels[1:, -2]) * beta[2]
+                ge[:, 0, 1:] += np.not_equal(comp[:, 0, 1:], labels[1, :-1]) * beta[2]
+                ge[:, -1, :-1] += np.not_equal(comp[:, -1, :-1], labels[-2, 1:]) * beta[2]
+                
+                ge[:, :-1, 0] += np.not_equal(comp[:, :-1, 0], labels[1:, 1]) * beta[3]
+                ge[:, 1:, -1] += np.not_equal(comp[:, 1:, -1], labels[:-1, -2]) * beta[3]
+                ge[:, 0, :-1] += np.not_equal(comp[:, 0, :-1], labels[1, 1:]) * beta[3]
+                ge[:, -1, 1:] += np.not_equal(comp[:, -1, 1:], labels[-2, :-1]) * beta[3]
+            
+            # Handle corners
+            ge[:, 0, 0] = (np.not_equal(comp[:, 0, 0], labels[1, 0]) * beta[1] +
+                           np.not_equal(comp[:, 0, 0], labels[0, 1]) * beta[0])
+            ge[:, -1, 0] = (np.not_equal(comp[:, -1, 0], labels[-1, 1]) * beta[0] +
+                            np.not_equal(comp[:, -1, 0], labels[-2, 0]) * beta[1])
+            ge[:, 0, -1] = (np.not_equal(comp[:, 0, -1], labels[1, -1]) * beta[1] +
+                            np.not_equal(comp[:, 0, -1], labels[0, -2]) * beta[0])
+            ge[:, -1, -1] = (np.not_equal(comp[:, -1, -1], labels[-2, -1]) * beta[1] +
+                             np.not_equal(comp[:, -1, -1], labels[-1, -2]) * beta[0])
+            
+            if self.stencil == "8p":
+                ge[:, 0, 0] += np.not_equal(comp[:, 0, 0], labels[1, 1]) * beta[3]
+                ge[:, -1, 0] += np.not_equal(comp[:, -1, 0], labels[-2, 1]) * beta[2]
+                ge[:, 0, -1] += np.not_equal(comp[:, 0, -1], labels[1, -2]) * beta[2]
+                ge[:, -1, -1] += np.not_equal(comp[:, -1, -1], labels[-2, -2]) * beta[3]
+            
+            # Reshape and transpose for return
             return np.array([ge[l, :, :].ravel() for l in range(self.n_labels)]).T
 
         # ************************************************************************************************
         elif self.dim == 3:
-            # TODO: [3D] implementation of gibbs energy
             raise Exception("3D not yet implemented.")
 
     def mcr(self, true_labels):
@@ -861,14 +877,32 @@ def draw_labels_vect(labels_prob):
 
 
 def evaluate(log_target_prop, log_target_prev):
-
-    ratio = np.exp(np.longfloat(log_target_prop - log_target_prev))
-
+    """Evaluate whether to accept or reject a proposal based on log target values.
+    Handles numerical stability issues.
+    """
+    # Handle invalid values
+    if np.isnan(log_target_prop) or np.isnan(log_target_prev):
+        return False, 0.0
+    if np.isinf(log_target_prop) and np.isinf(log_target_prev):
+        return False, 0.0
+    if np.isinf(log_target_prop) and log_target_prop > 0:
+        return True, np.inf
+    if np.isinf(log_target_prev) and log_target_prev > 0:
+        return False, 0.0
+        
+    # Calculate ratio with numerical stability
+    diff = log_target_prop - log_target_prev
+    if diff > 700:  # exp(700) is close to float64 max
+        return True, np.inf
+    if diff < -700:  # exp(-700) is close to float64 min
+        return False, 0.0
+        
+    ratio = np.exp(diff)
+    
     if (ratio > 1) or (np.random.uniform() < ratio):
-        return True, ratio  # if accepted
-
+        return True, ratio
     else:
-        return False, ratio  # if rejected
+        return False, ratio
 
 
 def _propose_cov(cov_prev, n_feat, n_labels, cov_jump_length, theta_jump_length):
